@@ -31,7 +31,11 @@ export function OverlayTracker({ overlayRef }: OverlayTrackerProps) {
       return
     }
 
-    point.current.set(0, object.size.y / 2, 0)
+    point.current.set(
+      object.position.x,
+      object.position.y + object.size.y / 2,
+      object.position.z,
+    )
     point.current.project(camera)
 
     if (point.current.z > 1) {

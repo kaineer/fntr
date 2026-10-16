@@ -3,6 +3,7 @@ import { Scene } from './scene/Scene.tsx'
 import { selectObject } from './store/objectsSlice.ts'
 import { useAppDispatch, useAppSelector } from './store/hooks.ts'
 import { CommandMenu } from './ui/CommandMenu.tsx'
+import { ModeBanner } from './ui/ModeBanner.tsx'
 import { SizeForm } from './ui/SizeForm.tsx'
 import './App.css'
 
@@ -23,7 +24,8 @@ function App() {
       <aside className="panel">
         <h1>fntr</h1>
         <p>
-          <kbd>Space</kbd> — Insert. Клик по объекту — Size / Color.
+          <kbd>Space</kbd> — Insert. Клик по объекту — Size / Move / Align /
+          Rotate.
         </p>
 
         <section className="object-list">
@@ -41,16 +43,18 @@ function App() {
                         ? 'object-item selected'
                         : 'object-item'
                     }
-                    onClick={() => dispatch(selectObject(object.id))}
+                    onClick={() =>
+                      dispatch(selectObject({ id: object.id }))
+                    }
                   >
                     <strong>{typeLabels[object.type]}</strong>
                     <span>
                       size {object.size.x}×{object.size.y}×{object.size.z}
                     </span>
                     <span>
-                      rot {object.rotation.x.toFixed(2)},{' '}
-                      {object.rotation.y.toFixed(2)},{' '}
-                      {object.rotation.z.toFixed(2)}
+                      pos {object.position.x.toFixed(1)},{' '}
+                      {object.position.y.toFixed(1)},{' '}
+                      {object.position.z.toFixed(1)}
                     </span>
                   </button>
                 </li>
@@ -62,6 +66,7 @@ function App() {
       <main className="viewport">
         <Scene overlayRef={formRef} />
         <SizeForm formRef={formRef} />
+        <ModeBanner />
         <CommandMenu />
       </main>
     </div>

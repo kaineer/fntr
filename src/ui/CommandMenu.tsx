@@ -1,14 +1,24 @@
 import { useEffect, useState } from 'react'
-import type { ObjectType, RotationAxis } from '../store/objectsSlice.ts'
+import type {
+  CornerId,
+  DragPlane,
+  ObjectType,
+  RotationAxis,
+} from '../store/objectsSlice.ts'
 import {
   addObject,
+  alignObjectCorners,
+  clearAlign,
   closeCommandMenu,
   openSizeForm,
   rotateObjectBy90,
   setMenuLevel,
+  startAlign,
+  startDrag,
   toggleSpaceMenu,
   updateObjectColor,
 } from '../store/objectsSlice.ts'
+import { CORNERS } from '../store/corners.ts'
 import { useAppDispatch, useAppSelector } from '../store/hooks.ts'
 
 type MenuItem = {
@@ -34,9 +44,16 @@ const ROTATE_AXES: { id: RotationAxis; label: string }[] = [
   { id: 'z', label: 'Z' },
 ]
 
+const MOVE_PLANES: { id: DragPlane; label: string }[] = [
+  { id: 'xy', label: 'XY' },
+  { id: 'xz', label: 'XZ' },
+  { id: 'yz', label: 'YZ' },
+]
+
 export function CommandMenu() {
   const dispatch = useAppDispatch()
   const selectedId = useAppSelector((state) => state.objects.selectedId)
+  const align = useAppSelector((state) => state.objects.align)
   const selectedColor = useAppSelector((state) => {
     const selected = state.objects.items.find(
       (item) => item.id === state.objects.selectedId,
@@ -50,6 +67,9 @@ export function CommandMenu() {
 
   const closeMenu = () => {
     setPendingAxis(null)
+    if (align?.phase === 'pickTargetCorner') {
+      dispatch(clearAlign())
+    }
     dispatch(closeCommandMenu())
   }
 
@@ -76,13 +96,16 @@ export function CommandMenu() {
         event.preventDefault()
         event.stopImmediatePropagation()
         setPendingAxis(null)
+        if (align?.phase === 'pickTargetCorner') {
+          dispatch(clearAlign())
+        }
         dispatch(closeCommandMenu())
       }
     }
 
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [dispatch, open])
+  }, [dispatch, open, align])
 
   const insertObject = (type: ObjectType) => {
     dispatch(addObject(type))
@@ -97,10 +120,20 @@ export function CommandMenu() {
 
   const applyRotate = (sign: 1 | -1) => {
     if (!selectedId || !pendingAxis) return
-    dispatch(
-      rotateObjectBy90({ id: selectedId, axis: pendingAxis, sign }),
-    )
+    dispatch(rotateObjectBy90({ id: selectedId, axis: pendingAxis, sign }))
     closeMenu()
+  }
+
+  const applyAlignTarget = (targetCorner: CornerId) => {
+    if (!selectedId || align?.phase !== 'pickTargetCorner') return
+    dispatch(
+      alignObjectCorners({
+        id: selectedId,
+        sourceCorner: align.sourceCorner,
+        targetId: align.targetId,
+        targetCorner,
+      }),
+    )
   }
 
   const objectActions: MenuItem[] = [
@@ -119,6 +152,16 @@ export function CommandMenu() {
       label: 'Rotate',
       onSelect: () => dispatch(setMenuLevel('rotate')),
     },
+    {
+      id: 'move',
+      label: 'Move',
+      onSelect: () => dispatch(setMenuLevel('move')),
+    },
+    {
+      id: 'align',
+      label: 'Align',
+      onSelect: () => dispatch(setMenuLevel('align')),
+    },
   ]
 
   const headerLabel =
@@ -132,12 +175,23 @@ export function CommandMenu() {
             ? pendingAxis
               ? `Rotate ${pendingAxis.toUpperCase()}`
               : 'Rotate'
-            : null
+            : level === 'move'
+              ? 'Move'
+              : level === 'align'
+                ? 'Align'
+                : level === 'alignTarget'
+                  ? 'Align to'
+                  : null
 
   const goBack = () => {
     if (level === 'rotateDir') {
       setPendingAxis(null)
       dispatch(setMenuLevel('rotate'))
+      return
+    }
+    if (level === 'alignTarget') {
+      dispatch(clearAlign())
+      dispatch(closeCommandMenu())
       return
     }
     if (level === 'rotate') {
@@ -161,16 +215,8 @@ export function CommandMenu() {
         : objectActions
   } else if (level === 'insert') {
     items = [
-      {
-        id: 'cube',
-        label: 'Cube',
-        onSelect: () => insertObject('cube'),
-      },
-      {
-        id: 'box',
-        label: 'Box',
-        onSelect: () => insertObject('box'),
-      },
+      { id: 'cube', label: 'Cube', onSelect: () => insertObject('cube') },
+      { id: 'box', label: 'Box', onSelect: () => insertObject('box') },
       {
         id: 'sphere',
         label: 'Sphere',
@@ -195,17 +241,27 @@ export function CommandMenu() {
     }))
   } else if (level === 'rotateDir') {
     items = [
-      {
-        id: 'plus90',
-        label: '+90°',
-        onSelect: () => applyRotate(1),
-      },
-      {
-        id: 'minus90',
-        label: '−90°',
-        onSelect: () => applyRotate(-1),
-      },
+      { id: 'plus90', label: '+90°', onSelect: () => applyRotate(1) },
+      { id: 'minus90', label: '−90°', onSelect: () => applyRotate(-1) },
     ]
+  } else if (level === 'move') {
+    items = MOVE_PLANES.map((plane) => ({
+      id: plane.id,
+      label: plane.label,
+      onSelect: () => dispatch(startDrag(plane.id)),
+    }))
+  } else if (level === 'align') {
+    items = CORNERS.map((corner) => ({
+      id: corner.id,
+      label: corner.label,
+      onSelect: () => dispatch(startAlign(corner.id)),
+    }))
+  } else if (level === 'alignTarget') {
+    items = CORNERS.map((corner) => ({
+      id: corner.id,
+      label: corner.label,
+      onSelect: () => applyAlignTarget(corner.id),
+    }))
   }
 
   if (!open) return null
