@@ -1,9 +1,7 @@
 import { createSlice, type PayloadAction, nanoid } from '@reduxjs/toolkit'
 import { positionToMatchCorners, type CornerId } from './corners.ts'
-import {
-  rotateLocal90,
-  type RotationAxis,
-} from './rotateLocal90.ts'
+import { rotateAroundEdge } from './rotateAroundEdge.ts'
+import { DEFAULT_SIZE_EDGE, type SizeEdge } from './sizeEdge.ts'
 
 export type ObjectType = 'cube' | 'box' | 'sphere'
 
@@ -39,13 +37,16 @@ export type MenuLevel =
   | 'root'
   | 'insert'
   | 'color'
-  | 'rotate'
-  | 'rotateDir'
   | 'move'
   | 'align'
   | 'alignTarget'
 
 export type MenuMode = 'space' | 'object'
+
+export type EdgeEditState = {
+  edge: SizeEdge
+  formOpen: boolean
+}
 
 export type ObjectsState = {
   items: SceneObject[]
@@ -55,7 +56,8 @@ export type ObjectsState = {
     mode: MenuMode
     level: MenuLevel
   }
-  sizeFormOpen: boolean
+  sizeEdit: EdgeEditState | null
+  rotateEdit: EdgeEditState | null
   dragPlane: DragPlane | null
   align: AlignState
 }
@@ -86,7 +88,8 @@ const initialState: ObjectsState = {
   items: [],
   selectedId: null,
   commandMenu: closedMenu,
-  sizeFormOpen: false,
+  sizeEdit: null,
+  rotateEdit: null,
   dragPlane: null,
   align: null,
 }
@@ -119,14 +122,19 @@ const objectsSlice = createSlice({
     ) {
       const { id, openMenu = true } = action.payload
       state.selectedId = id
-      state.sizeFormOpen = false
+      state.sizeEdit = null
+      state.rotateEdit = null
 
       if (!id) {
         state.commandMenu = closedMenu
         return
       }
 
-      if (!openMenu || state.dragPlane || state.align?.phase === 'pickTarget') {
+      if (
+        !openMenu ||
+        state.dragPlane ||
+        state.align?.phase === 'pickTarget'
+      ) {
         state.commandMenu = closedMenu
         return
       }
@@ -154,19 +162,60 @@ const objectsSlice = createSlice({
     closeCommandMenu(state) {
       state.commandMenu = closedMenu
     },
-    openSizeForm(state) {
+    startSizeEdit(state) {
       if (!state.selectedId) return
-      state.sizeFormOpen = true
+      state.sizeEdit = { edge: { ...DEFAULT_SIZE_EDGE }, formOpen: false }
+      state.rotateEdit = null
+      state.dragPlane = null
+      state.align = null
+      state.commandMenu = closedMenu
+    },
+    setSizeEdge(state, action: PayloadAction<SizeEdge>) {
+      if (!state.sizeEdit) return
+      state.sizeEdit.edge = action.payload
+    },
+    openSizeForm(state) {
+      if (!state.sizeEdit) return
+      state.sizeEdit.formOpen = true
       state.commandMenu = closedMenu
     },
     closeSizeForm(state) {
-      state.sizeFormOpen = false
+      if (!state.sizeEdit) return
+      state.sizeEdit.formOpen = false
+    },
+    exitSizeEdit(state) {
+      state.sizeEdit = null
+    },
+    startRotateEdit(state) {
+      if (!state.selectedId) return
+      state.rotateEdit = { edge: { ...DEFAULT_SIZE_EDGE }, formOpen: false }
+      state.sizeEdit = null
+      state.dragPlane = null
+      state.align = null
+      state.commandMenu = closedMenu
+    },
+    setRotateEdge(state, action: PayloadAction<SizeEdge>) {
+      if (!state.rotateEdit) return
+      state.rotateEdit.edge = action.payload
+    },
+    openRotateForm(state) {
+      if (!state.rotateEdit) return
+      state.rotateEdit.formOpen = true
+      state.commandMenu = closedMenu
+    },
+    closeRotateForm(state) {
+      if (!state.rotateEdit) return
+      state.rotateEdit.formOpen = false
+    },
+    exitRotateEdit(state) {
+      state.rotateEdit = null
     },
     startDrag(state, action: PayloadAction<DragPlane>) {
       if (!state.selectedId) return
       state.dragPlane = action.payload
       state.align = null
-      state.sizeFormOpen = false
+      state.sizeEdit = null
+      state.rotateEdit = null
       state.commandMenu = closedMenu
     },
     clearDrag(state) {
@@ -176,7 +225,8 @@ const objectsSlice = createSlice({
       if (!state.selectedId) return
       state.align = { phase: 'pickTarget', sourceCorner: action.payload }
       state.dragPlane = null
-      state.sizeFormOpen = false
+      state.sizeEdit = null
+      state.rotateEdit = null
       state.commandMenu = closedMenu
     },
     pickAlignTarget(state, action: PayloadAction<string>) {
@@ -199,12 +249,15 @@ const objectsSlice = createSlice({
     clearInteractionModes(state) {
       state.dragPlane = null
       state.align = null
+      state.sizeEdit = null
+      state.rotateEdit = null
     },
     removeObject(state, action: PayloadAction<string>) {
       state.items = state.items.filter((item) => item.id !== action.payload)
       if (state.selectedId === action.payload) {
         state.selectedId = null
-        state.sizeFormOpen = false
+        state.sizeEdit = null
+        state.rotateEdit = null
         state.commandMenu = closedMenu
         state.dragPlane = null
         state.align = null
@@ -250,21 +303,25 @@ const objectsSlice = createSlice({
       if (!item) return
       item.color = action.payload.color
     },
-    rotateObjectBy90(
+    rotateObjectAroundEdge(
       state,
       action: PayloadAction<{
         id: string
-        axis: RotationAxis
-        sign: 1 | -1
+        edge: SizeEdge
+        degrees: -90 | 90 | 180
       }>,
     ) {
       const item = state.items.find((entry) => entry.id === action.payload.id)
       if (!item) return
-      item.rotation = rotateLocal90(
+      const next = rotateAroundEdge(
+        item.position,
         item.rotation,
-        action.payload.axis,
-        action.payload.sign,
+        item.size,
+        action.payload.edge,
+        (action.payload.degrees * Math.PI) / 180,
       )
+      item.position = next.position
+      item.rotation = next.rotation
     },
     alignObjectCorners(
       state,
@@ -298,8 +355,16 @@ export const {
   toggleSpaceMenu,
   setMenuLevel,
   closeCommandMenu,
+  startSizeEdit,
+  setSizeEdge,
   openSizeForm,
   closeSizeForm,
+  exitSizeEdit,
+  startRotateEdit,
+  setRotateEdge,
+  openRotateForm,
+  closeRotateForm,
+  exitRotateEdit,
   startDrag,
   clearDrag,
   startAlign,
@@ -311,9 +376,9 @@ export const {
   updateObjectPosition,
   updateObjectRotation,
   updateObjectColor,
-  rotateObjectBy90,
+  rotateObjectAroundEdge,
   alignObjectCorners,
 } = objectsSlice.actions
 
-export type { RotationAxis, CornerId }
+export type { CornerId, SizeEdge }
 export default objectsSlice.reducer

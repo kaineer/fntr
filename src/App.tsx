@@ -4,6 +4,7 @@ import { selectObject } from './store/objectsSlice.ts'
 import { useAppDispatch, useAppSelector } from './store/hooks.ts'
 import { CommandMenu } from './ui/CommandMenu.tsx'
 import { ModeBanner } from './ui/ModeBanner.tsx'
+import { RotateForm } from './ui/RotateForm.tsx'
 import { SizeForm } from './ui/SizeForm.tsx'
 import './App.css'
 
@@ -66,6 +67,7 @@ function App() {
       <main className="viewport">
         <Scene overlayRef={formRef} />
         <SizeForm formRef={formRef} />
+        <RotateForm formRef={formRef} />
         <ModeBanner />
         <CommandMenu />
       </main>

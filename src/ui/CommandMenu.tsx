@@ -1,20 +1,17 @@
-import { useEffect, useState } from 'react'
-import type {
-  CornerId,
-  DragPlane,
-  ObjectType,
-  RotationAxis,
-} from '../store/objectsSlice.ts'
+import { useEffect } from 'react'
+import type { CornerId, DragPlane, ObjectType } from '../store/objectsSlice.ts'
 import {
   addObject,
   alignObjectCorners,
   clearAlign,
   closeCommandMenu,
+  openRotateForm,
   openSizeForm,
-  rotateObjectBy90,
   setMenuLevel,
   startAlign,
   startDrag,
+  startRotateEdit,
+  startSizeEdit,
   toggleSpaceMenu,
   updateObjectColor,
 } from '../store/objectsSlice.ts'
@@ -38,12 +35,6 @@ const OBJECT_COLORS = [
   { id: 'white', label: 'White', value: '#e8eaf0' },
 ] as const
 
-const ROTATE_AXES: { id: RotationAxis; label: string }[] = [
-  { id: 'x', label: 'X' },
-  { id: 'y', label: 'Y' },
-  { id: 'z', label: 'Z' },
-]
-
 const MOVE_PLANES: { id: DragPlane; label: string }[] = [
   { id: 'xy', label: 'XY' },
   { id: 'xz', label: 'XZ' },
@@ -54,6 +45,8 @@ export function CommandMenu() {
   const dispatch = useAppDispatch()
   const selectedId = useAppSelector((state) => state.objects.selectedId)
   const align = useAppSelector((state) => state.objects.align)
+  const sizeEdit = useAppSelector((state) => state.objects.sizeEdit)
+  const rotateEdit = useAppSelector((state) => state.objects.rotateEdit)
   const selectedColor = useAppSelector((state) => {
     const selected = state.objects.items.find(
       (item) => item.id === state.objects.selectedId,
@@ -63,10 +56,8 @@ export function CommandMenu() {
   const { open, mode, level } = useAppSelector(
     (state) => state.objects.commandMenu,
   )
-  const [pendingAxis, setPendingAxis] = useState<RotationAxis | null>(null)
 
   const closeMenu = () => {
-    setPendingAxis(null)
     if (align?.phase === 'pickTargetCorner') {
       dispatch(clearAlign())
     }
@@ -87,7 +78,18 @@ export function CommandMenu() {
 
       if (event.code === 'Space') {
         event.preventDefault()
-        setPendingAxis(null)
+        if (sizeEdit) {
+          if (!sizeEdit.formOpen) {
+            dispatch(openSizeForm())
+          }
+          return
+        }
+        if (rotateEdit) {
+          if (!rotateEdit.formOpen) {
+            dispatch(openRotateForm())
+          }
+          return
+        }
         dispatch(toggleSpaceMenu())
         return
       }
@@ -95,7 +97,6 @@ export function CommandMenu() {
       if (event.code === 'Escape' && open) {
         event.preventDefault()
         event.stopImmediatePropagation()
-        setPendingAxis(null)
         if (align?.phase === 'pickTargetCorner') {
           dispatch(clearAlign())
         }
@@ -105,7 +106,7 @@ export function CommandMenu() {
 
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [dispatch, open, align])
+  }, [dispatch, open, align, sizeEdit, rotateEdit])
 
   const insertObject = (type: ObjectType) => {
     dispatch(addObject(type))
@@ -115,12 +116,6 @@ export function CommandMenu() {
   const setColor = (color: string) => {
     if (!selectedId) return
     dispatch(updateObjectColor({ id: selectedId, color }))
-    closeMenu()
-  }
-
-  const applyRotate = (sign: 1 | -1) => {
-    if (!selectedId || !pendingAxis) return
-    dispatch(rotateObjectBy90({ id: selectedId, axis: pendingAxis, sign }))
     closeMenu()
   }
 
@@ -140,7 +135,7 @@ export function CommandMenu() {
     {
       id: 'size',
       label: 'Size',
-      onSelect: () => dispatch(openSizeForm()),
+      onSelect: () => dispatch(startSizeEdit()),
     },
     {
       id: 'color',
@@ -150,7 +145,7 @@ export function CommandMenu() {
     {
       id: 'rotate',
       label: 'Rotate',
-      onSelect: () => dispatch(setMenuLevel('rotate')),
+      onSelect: () => dispatch(startRotateEdit()),
     },
     {
       id: 'move',
@@ -169,33 +164,19 @@ export function CommandMenu() {
       ? 'Insert'
       : level === 'color'
         ? 'Color'
-        : level === 'rotate'
-          ? 'Rotate'
-          : level === 'rotateDir'
-            ? pendingAxis
-              ? `Rotate ${pendingAxis.toUpperCase()}`
-              : 'Rotate'
-            : level === 'move'
-              ? 'Move'
-              : level === 'align'
-                ? 'Align'
-                : level === 'alignTarget'
-                  ? 'Align to'
-                  : null
+        : level === 'move'
+          ? 'Move'
+          : level === 'align'
+            ? 'Align'
+            : level === 'alignTarget'
+              ? 'Align to'
+              : null
 
   const goBack = () => {
-    if (level === 'rotateDir') {
-      setPendingAxis(null)
-      dispatch(setMenuLevel('rotate'))
-      return
-    }
     if (level === 'alignTarget') {
       dispatch(clearAlign())
       dispatch(closeCommandMenu())
       return
-    }
-    if (level === 'rotate') {
-      setPendingAxis(null)
     }
     dispatch(setMenuLevel('root'))
   }
@@ -230,20 +211,6 @@ export function CommandMenu() {
       color: entry.value,
       onSelect: () => setColor(entry.value),
     }))
-  } else if (level === 'rotate') {
-    items = ROTATE_AXES.map((axis) => ({
-      id: axis.id,
-      label: axis.label,
-      onSelect: () => {
-        setPendingAxis(axis.id)
-        dispatch(setMenuLevel('rotateDir'))
-      },
-    }))
-  } else if (level === 'rotateDir') {
-    items = [
-      { id: 'plus90', label: '+90°', onSelect: () => applyRotate(1) },
-      { id: 'minus90', label: '−90°', onSelect: () => applyRotate(-1) },
-    ]
   } else if (level === 'move') {
     items = MOVE_PLANES.map((plane) => ({
       id: plane.id,
@@ -310,9 +277,7 @@ export function CommandMenu() {
                   />
                 ) : null}
                 {item.label}
-                {level === 'root' || level === 'rotate' ? (
-                  <span className="hint">›</span>
-                ) : null}
+                {level === 'root' ? <span className="hint">›</span> : null}
               </button>
             </li>
           ))}

@@ -134,6 +134,27 @@
   gap: 12px;
 }
 
+.rotate-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.rotate-actions button {
+  flex: 1;
+  padding: 8px 6px;
+  border: 1px solid #2a3550;
+  border-radius: 6px;
+  background: #111827;
+  color: #e8eaf0;
+  font: inherit;
+  cursor: pointer;
+}
+
+.rotate-actions button:hover {
+  border-color: #6ea8fe;
+  background: #151d2f;
+}
+
 .size-field {
   display: flex;
   flex-direction: column;

@@ -4,11 +4,14 @@ import { Plane, Vector3 } from 'three'
 import {
   pickAlignTarget,
   selectObject,
+  setRotateEdge,
+  setSizeEdge,
   updateObjectPosition,
   type SceneObject,
 } from '../store/objectsSlice.ts'
 import { useAppDispatch, useAppSelector } from '../store/hooks.ts'
 import { planeThroughPoint } from './dragPlane.ts'
+import { EdgeHandles } from './EdgeHandles.tsx'
 
 type SceneObjectMeshProps = {
   object: SceneObject
@@ -21,6 +24,8 @@ export function SceneObjectMesh({ object }: SceneObjectMeshProps) {
   )
   const dragPlane = useAppSelector((state) => state.objects.dragPlane)
   const align = useAppSelector((state) => state.objects.align)
+  const sizeEdit = useAppSelector((state) => state.objects.sizeEdit)
+  const rotateEdit = useAppSelector((state) => state.objects.rotateEdit)
   const dragging = useRef(false)
   const moved = useRef(false)
   const activePlane = useRef(new Plane())
@@ -39,6 +44,10 @@ export function SceneObjectMesh({ object }: SceneObjectMeshProps) {
     position.z,
   ]
 
+  const edgeEdit = sizeEdit ?? rotateEdit
+  const edgeEditing = Boolean(edgeEdit && selected)
+  const isBox = type === 'cube' || type === 'box'
+
   const onClick = (event: ThreeEvent<MouseEvent>) => {
     event.stopPropagation()
 
@@ -49,6 +58,13 @@ export function SceneObjectMesh({ object }: SceneObjectMeshProps) {
 
     if (align?.phase === 'pickTarget') {
       dispatch(pickAlignTarget(object.id))
+      return
+    }
+
+    if (sizeEdit || rotateEdit) {
+      if (!selected) {
+        dispatch(selectObject({ id: object.id, openMenu: false }))
+      }
       return
     }
 
@@ -139,14 +155,22 @@ export function SceneObjectMesh({ object }: SceneObjectMeshProps) {
   }
 
   return (
-    <mesh
-      position={positionVec}
-      rotation={rotationRad}
-      onClick={onClick}
-      {...dragHandlers}
-    >
-      <boxGeometry args={[size.x, size.y, size.z]} />
-      {material}
-    </mesh>
+    <group position={positionVec} rotation={rotationRad}>
+      <mesh onClick={onClick} {...dragHandlers}>
+        <boxGeometry args={[size.x, size.y, size.z]} />
+        {material}
+      </mesh>
+      {edgeEditing && edgeEdit && isBox ? (
+        <EdgeHandles
+          size={size}
+          selectedEdge={edgeEdit.edge}
+          onSelect={(edge) =>
+            dispatch(
+              sizeEdit ? setSizeEdge(edge) : setRotateEdge(edge),
+            )
+          }
+        />
+      ) : null}
+    </group>
   )
 }
