@@ -1,6 +1,7 @@
 import type { RefObject } from 'react'
 import { Canvas } from '@react-three/fiber'
 import { useAppSelector } from '../store/hooks.ts'
+import { OrbitY } from './OrbitY.tsx'
 import { OverlayTracker } from './OverlayTracker.tsx'
 import { SceneObjectMesh } from './SceneObjectMesh.tsx'
 import { WheelZoom } from './WheelZoom.tsx'
@@ -22,6 +23,7 @@ export function Scene({ overlayRef }: SceneProps) {
       <directionalLight position={[4, 6, 3]} intensity={1.5} />
       <gridHelper args={[20, 20, '#2a3550', '#1a2236']} />
       <WheelZoom />
+      <OrbitY />
       <OverlayTracker overlayRef={overlayRef} />
       {objects.map((object) => (
         <SceneObjectMesh key={object.id} object={object} />
