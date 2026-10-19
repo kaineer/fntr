@@ -49,6 +49,17 @@ function worldHalfExtents(source: PasteSource): Vec3 {
   return { x: maxX, y: maxY, z: maxZ }
 }
 
+function worldAabb(sources: PasteSource[]): { minX: number; maxX: number } {
+  let minX = Infinity
+  let maxX = -Infinity
+  for (const source of sources) {
+    const half = worldHalfExtents(source)
+    minX = Math.min(minX, source.position.x - half.x)
+    maxX = Math.max(maxX, source.position.x + half.x)
+  }
+  return { minX, maxX }
+}
+
 /**
  * Place a paste beside the source: same Y/Z, shifted on X by full world width + gap
  * so AABBs do not intersect.
@@ -60,4 +71,11 @@ export function pastePositionBeside(source: PasteSource): Vec3 {
     y: source.position.y,
     z: source.position.z,
   }
+}
+
+/** Shift a whole clipboard set along X so it clears the original AABB. */
+export function pasteGroupDeltaX(sources: PasteSource[]): number {
+  if (sources.length === 0) return 0
+  const { minX, maxX } = worldAabb(sources)
+  return maxX - minX + PASTE_GAP
 }

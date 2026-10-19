@@ -17,9 +17,11 @@ const AXIS_LABELS = {
 export function SizeForm({ formRef }: SizeFormProps) {
   const dispatch = useAppDispatch()
   const sizeEdit = useAppSelector((state) => state.objects.sizeEdit)
-  const selected = useAppSelector((state) =>
-    state.objects.items.find((item) => item.id === state.objects.selectedId),
-  )
+  const selected = useAppSelector((state) => {
+    const ids = state.objects.selectedIds
+    if (ids.length !== 1) return undefined
+    return state.objects.items.find((item) => item.id === ids[0])
+  })
 
   if (!sizeEdit?.formOpen || !selected) return null
 

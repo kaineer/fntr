@@ -6,11 +6,14 @@ import {
   NonRaycastGrid,
   useDismissOnEmptyClick,
 } from './EmptyClickDismiss.tsx'
+import { initialOrbitCameraPosition } from './orbitPivot.ts'
 import { OrbitY } from './OrbitY.tsx'
 import { OverlayTracker } from './OverlayTracker.tsx'
 import { RotateEdgeDrag } from './RotateEdgeDrag.tsx'
 import { SceneObjectMesh } from './SceneObjectMesh.tsx'
 import { WheelZoom } from './WheelZoom.tsx'
+
+const INITIAL_CAMERA = initialOrbitCameraPosition()
 
 type SceneProps = {
   overlayRef: RefObject<HTMLElement | null>
@@ -22,8 +25,10 @@ export function Scene({ overlayRef }: SceneProps) {
 
   return (
     <Canvas
-      camera={{ position: [3.2, 2.4, 4.2], fov: 50 }}
-      onCreated={({ camera }) => camera.lookAt(0, 0, 0)}
+      camera={{ position: INITIAL_CAMERA, fov: 50 }}
+      onCreated={({ camera }) => {
+        camera.lookAt(0, 0, 0)
+      }}
       onPointerMissed={onPointerMissed}
     >
       <color attach="background" args={['#d8dce3']} />

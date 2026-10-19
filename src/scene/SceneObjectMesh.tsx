@@ -2,13 +2,16 @@ import { useRef } from 'react'
 import { type ThreeEvent } from '@react-three/fiber'
 import { Plane, Vector3 } from 'three'
 import {
+  addToSelection,
+  openObjectMenu,
   pickAlignTarget,
   selectObject,
   setRotateEdge,
   setSizeEdge,
-  updateObjectPosition,
+  translateSelected,
   type SceneObject,
 } from '../store/objectsSlice.ts'
+import { primarySelectedId } from '../store/selection.ts'
 import { useAppDispatch, useAppSelector } from '../store/hooks.ts'
 import { planeThroughPoint } from './dragPlane.ts'
 import { EdgeHandles } from './EdgeHandles.tsx'
@@ -20,9 +23,10 @@ type SceneObjectMeshProps = {
 
 export function SceneObjectMesh({ object }: SceneObjectMeshProps) {
   const dispatch = useAppDispatch()
-  const selected = useAppSelector(
-    (state) => state.objects.selectedId === object.id,
+  const selected = useAppSelector((state) =>
+    state.objects.selectedIds.includes(object.id),
   )
+  const selectedIds = useAppSelector((state) => state.objects.selectedIds)
   const dragPlane = useAppSelector((state) => state.objects.dragPlane)
   const align = useAppSelector((state) => state.objects.align)
   const sizeEdit = useAppSelector((state) => state.objects.sizeEdit)
@@ -45,8 +49,11 @@ export function SceneObjectMesh({ object }: SceneObjectMeshProps) {
     position.z,
   ]
 
+  const primaryId = primarySelectedId(selectedIds)
   const edgeEdit = sizeEdit ?? rotateEdit
-  const edgeEditing = Boolean(edgeEdit && selected)
+  const edgeEditing = Boolean(
+    edgeEdit && selected && primaryId === object.id && type !== 'sphere',
+  )
   const isBox = type === 'cube' || type === 'box'
 
   const onClick = (event: ThreeEvent<MouseEvent>) => {
@@ -69,6 +76,12 @@ export function SceneObjectMesh({ object }: SceneObjectMeshProps) {
       return
     }
 
+    // Shift+click adds to selection when something is already selected.
+    if (event.nativeEvent.shiftKey && selectedIds.length > 0) {
+      dispatch(addToSelection(object.id))
+      return
+    }
+
     // LMB selects only; context menu opens on RMB.
     dispatch(selectObject({ id: object.id, openMenu: false }))
   }
@@ -87,6 +100,11 @@ export function SceneObjectMesh({ object }: SceneObjectMeshProps) {
       return
     }
 
+    // RMB on already-selected object keeps multi-selection and opens menu.
+    if (selected) {
+      dispatch(openObjectMenu())
+      return
+    }
     dispatch(selectObject({ id: object.id, openMenu: true }))
   }
 
@@ -115,13 +133,16 @@ export function SceneObjectMesh({ object }: SceneObjectMeshProps) {
 
     if (!event.ray.intersectPlane(activePlane.current, hitPoint.current)) return
 
+    const nextX = hitPoint.current.x + grabOffset.current.x
+    const nextY = hitPoint.current.y + grabOffset.current.y
+    const nextZ = hitPoint.current.z + grabOffset.current.z
+
     dispatch(
-      updateObjectPosition({
-        id: object.id,
-        position: {
-          x: hitPoint.current.x + grabOffset.current.x,
-          y: hitPoint.current.y + grabOffset.current.y,
-          z: hitPoint.current.z + grabOffset.current.z,
+      translateSelected({
+        delta: {
+          x: nextX - position.x,
+          y: nextY - position.y,
+          z: nextZ - position.z,
         },
       }),
     )
@@ -176,9 +197,7 @@ export function SceneObjectMesh({ object }: SceneObjectMeshProps) {
           size={size}
           selectedEdge={edgeEdit.edge}
           onSelect={(edge) =>
-            dispatch(
-              sizeEdit ? setSizeEdge(edge) : setRotateEdge(edge),
-            )
+            dispatch(sizeEdit ? setSizeEdge(edge) : setRotateEdge(edge))
           }
         />
       ) : null}

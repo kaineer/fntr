@@ -9,9 +9,11 @@ type OverlayTrackerProps = {
 }
 
 export function OverlayTracker({ overlayRef }: OverlayTrackerProps) {
-  const selected = useAppSelector((state) =>
-    state.objects.items.find((item) => item.id === state.objects.selectedId),
-  )
+  const selected = useAppSelector((state) => {
+    const ids = state.objects.selectedIds
+    const primary = ids.length > 0 ? ids[ids.length - 1] : null
+    return state.objects.items.find((item) => item.id === primary)
+  })
   const selectedRef = useRef<SceneObject | undefined>(selected)
 
   useEffect(() => {

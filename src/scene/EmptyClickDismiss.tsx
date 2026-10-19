@@ -93,6 +93,8 @@ export function useDismissOnEmptyClick() {
 
   return (event: MouseEvent) => {
     if (event.button !== 0 || wasLastLmbMoved()) return
+    // Shift+click on empty space must not change selection or modes.
+    if (event.shiftKey) return
     if (!hasModeRef.current) return
     dispatch(clearInteractionModes())
   }

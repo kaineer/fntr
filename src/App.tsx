@@ -1,6 +1,6 @@
 import { useRef } from 'react'
 import { Scene } from './scene/Scene.tsx'
-import { selectObject } from './store/objectsSlice.ts'
+import { addToSelection, selectObject } from './store/objectsSlice.ts'
 import { useAppDispatch, useAppSelector } from './store/hooks.ts'
 import { CommandMenu } from './ui/CommandMenu.tsx'
 import { ModeBanner } from './ui/ModeBanner.tsx'
@@ -17,7 +17,7 @@ const typeLabels = {
 function App() {
   const dispatch = useAppDispatch()
   const objects = useAppSelector((state) => state.objects.items)
-  const selectedId = useAppSelector((state) => state.objects.selectedId)
+  const selectedIds = useAppSelector((state) => state.objects.selectedIds)
   const formRef = useRef<HTMLElement>(null)
 
   return (
@@ -25,8 +25,9 @@ function App() {
       <aside className="panel">
         <h1>fntr</h1>
         <p>
-          <kbd>Space</kbd> — Insert. ЛКМ — выбор, ПКМ — меню.{' '}
-          <kbd>X</kbd> — cut, <kbd>Y</kbd> — yank, <kbd>P</kbd> — paste.
+          <kbd>Space</kbd> — Insert. ЛКМ — выбор, Shift+ЛКМ — добавить, ПКМ —
+          меню. <kbd>G</kbd> — group, <kbd>Shift+G</kbd> — ungroup.{' '}
+          <kbd>X</kbd>/<kbd>Y</kbd>/<kbd>P</kbd> — cut/yank/paste.
         </p>
 
         <section className="object-list">
@@ -40,15 +41,22 @@ function App() {
                   <button
                     type="button"
                     className={
-                      object.id === selectedId
+                      selectedIds.includes(object.id)
                         ? 'object-item selected'
                         : 'object-item'
                     }
-                    onClick={() =>
+                    onClick={(event) => {
+                      if (event.shiftKey && selectedIds.length > 0) {
+                        dispatch(addToSelection(object.id))
+                        return
+                      }
                       dispatch(selectObject({ id: object.id }))
-                    }
+                    }}
                   >
-                    <strong>{typeLabels[object.type]}</strong>
+                    <strong>
+                      {typeLabels[object.type]}
+                      {object.groupId ? ' · g' : ''}
+                    </strong>
                     <span>
                       size {object.size.x}×{object.size.y}×{object.size.z}
                     </span>

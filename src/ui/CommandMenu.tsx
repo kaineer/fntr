@@ -6,6 +6,7 @@ import {
   clearAlign,
   closeCommandMenu,
   cutSelected,
+  groupSelected,
   openRotateForm,
   openSizeForm,
   pasteClipboard,
@@ -15,9 +16,11 @@ import {
   startRotateEdit,
   startSizeEdit,
   toggleSpaceMenu,
-  updateObjectColor,
+  ungroupSelected,
+  updateSelectedColor,
   yankSelected,
 } from '../store/objectsSlice.ts'
+import { isGroupSelection, primarySelectedId } from '../store/selection.ts'
 import { CORNERS } from '../store/corners.ts'
 import { useAppDispatch, useAppSelector } from '../store/hooks.ts'
 
@@ -44,14 +47,17 @@ const MOVE_PLANES: { id: DragPlane; label: string }[] = [
 
 export function CommandMenu() {
   const dispatch = useAppDispatch()
-  const selectedId = useAppSelector((state) => state.objects.selectedId)
+  const selectedIds = useAppSelector((state) => state.objects.selectedIds)
+  const items = useAppSelector((state) => state.objects.items)
   const align = useAppSelector((state) => state.objects.align)
   const sizeEdit = useAppSelector((state) => state.objects.sizeEdit)
   const rotateEdit = useAppSelector((state) => state.objects.rotateEdit)
+  const selectedId = primarySelectedId(selectedIds)
+  const multi = selectedIds.length > 1
+  const groupSelectedActive = isGroupSelection(items, selectedIds)
   const selectedColor = useAppSelector((state) => {
-    const selected = state.objects.items.find(
-      (item) => item.id === state.objects.selectedId,
-    )
+    const primary = primarySelectedId(state.objects.selectedIds)
+    const selected = state.objects.items.find((item) => item.id === primary)
     return selected?.color
   })
   const { open, mode, level } = useAppSelector(
@@ -115,15 +121,28 @@ export function CommandMenu() {
         Boolean(align)
       if (busy || event.metaKey || event.ctrlKey || event.altKey) return
 
+      if (event.code === 'KeyG') {
+        if (event.shiftKey) {
+          if (!groupSelectedActive) return
+          event.preventDefault()
+          dispatch(ungroupSelected())
+          return
+        }
+        if (selectedIds.length < 2) return
+        event.preventDefault()
+        dispatch(groupSelected())
+        return
+      }
+
       if (event.code === 'KeyX') {
-        if (!selectedId) return
+        if (selectedIds.length === 0) return
         event.preventDefault()
         dispatch(cutSelected())
         return
       }
 
       if (event.code === 'KeyY') {
-        if (!selectedId) return
+        if (selectedIds.length === 0) return
         event.preventDefault()
         dispatch(yankSelected())
         return
@@ -145,8 +164,9 @@ export function CommandMenu() {
     sizeEdit,
     rotateEdit,
     dragPlane,
-    selectedId,
+    selectedIds,
     clipboard,
+    groupSelectedActive,
   ])
 
   const insertObject = (type: ObjectType) => {
@@ -155,8 +175,8 @@ export function CommandMenu() {
   }
 
   const setColor = (color: string) => {
-    if (!selectedId) return
-    dispatch(updateObjectColor({ id: selectedId, color }))
+    if (selectedIds.length === 0) return
+    dispatch(updateSelectedColor(color))
     closeMenu()
   }
 
@@ -173,11 +193,15 @@ export function CommandMenu() {
   }
 
   const objectActions: MenuItem[] = [
-    {
-      id: 'size',
-      label: 'Size',
-      onSelect: () => dispatch(startSizeEdit()),
-    },
+    ...(!multi
+      ? [
+          {
+            id: 'size',
+            label: 'Size',
+            onSelect: () => dispatch(startSizeEdit()),
+          },
+        ]
+      : []),
     {
       id: 'color',
       label: 'Color',
@@ -193,11 +217,39 @@ export function CommandMenu() {
       label: 'Move',
       onSelect: () => dispatch(setMenuLevel('move')),
     },
-    {
-      id: 'align',
-      label: 'Align',
-      onSelect: () => dispatch(setMenuLevel('align')),
-    },
+    ...(!multi
+      ? [
+          {
+            id: 'align',
+            label: 'Align',
+            onSelect: () => dispatch(setMenuLevel('align')),
+          },
+        ]
+      : []),
+    ...(multi && !groupSelectedActive
+      ? [
+          {
+            id: 'group',
+            label: 'Group',
+            onSelect: () => {
+              dispatch(groupSelected())
+              closeMenu()
+            },
+          },
+        ]
+      : []),
+    ...(groupSelectedActive
+      ? [
+          {
+            id: 'ungroup',
+            label: 'Ungroup',
+            onSelect: () => {
+              dispatch(ungroupSelected())
+              closeMenu()
+            },
+          },
+        ]
+      : []),
     {
       id: 'delete',
       label: 'Delete',
@@ -230,9 +282,9 @@ export function CommandMenu() {
     dispatch(setMenuLevel('root'))
   }
 
-  let items: MenuItem[] = []
+  let menuItems: MenuItem[] = []
   if (level === 'root') {
-    items =
+    menuItems =
       mode === 'space'
         ? [
             {
@@ -244,7 +296,7 @@ export function CommandMenu() {
           ]
         : objectActions
   } else if (level === 'insert') {
-    items = [
+    menuItems = [
       { id: 'cube', label: 'Cube', onSelect: () => insertObject('cube') },
       { id: 'box', label: 'Box', onSelect: () => insertObject('box') },
       {
@@ -254,26 +306,26 @@ export function CommandMenu() {
       },
     ]
   } else if (level === 'color') {
-    items = OBJECT_COLORS.map((entry) => ({
+    menuItems = OBJECT_COLORS.map((entry) => ({
       id: entry.id,
       label: entry.label,
       color: entry.value,
       onSelect: () => setColor(entry.value),
     }))
   } else if (level === 'move') {
-    items = MOVE_PLANES.map((plane) => ({
+    menuItems = MOVE_PLANES.map((plane) => ({
       id: plane.id,
       label: plane.label,
       onSelect: () => dispatch(startDrag(plane.id)),
     }))
   } else if (level === 'align') {
-    items = CORNERS.map((corner) => ({
+    menuItems = CORNERS.map((corner) => ({
       id: corner.id,
       label: corner.label,
       onSelect: () => dispatch(startAlign(corner.id)),
     }))
   } else if (level === 'alignTarget') {
-    items = CORNERS.map((corner) => ({
+    menuItems = CORNERS.map((corner) => ({
       id: corner.id,
       label: corner.label,
       onSelect: () => applyAlignTarget(corner.id),
@@ -300,11 +352,17 @@ export function CommandMenu() {
               ← {headerLabel}
             </button>
           ) : (
-            <span>{mode === 'object' ? 'Object' : 'Space'}</span>
+            <span>
+              {mode === 'object'
+                ? multi
+                  ? `Objects (${selectedIds.length})`
+                  : 'Object'
+                : 'Space'}
+            </span>
           )}
         </div>
         <ul>
-          {items.map((item) => (
+          {menuItems.map((item) => (
             <li key={item.id}>
               <button
                 type="button"

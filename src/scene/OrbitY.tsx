@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { useThree } from '@react-three/fiber'
 import { useAppSelector } from '../store/hooks.ts'
-import { selectOrbitPivot } from './orbitPivot.ts'
+import { aimCameraAtPivot, selectOrbitPivot } from './orbitPivot.ts'
 
 type OrbitYProps = {
   sensitivity?: number
@@ -12,6 +12,9 @@ export function OrbitY({ sensitivity = 0.005 }: OrbitYProps) {
   const gl = useThree((state) => state.gl)
   const dragPlane = useAppSelector((state) => state.objects.dragPlane)
   const rotateEdit = useAppSelector((state) => state.objects.rotateEdit)
+  const selectedKey = useAppSelector((state) =>
+    state.objects.selectedIds.join(','),
+  )
   const pivot = useAppSelector(selectOrbitPivot)
 
   const dragPlaneRef = useRef(dragPlane)
@@ -20,6 +23,11 @@ export function OrbitY({ sensitivity = 0.005 }: OrbitYProps) {
   dragPlaneRef.current = dragPlane
   rotateEditRef.current = rotateEdit
   pivotRef.current = pivot
+
+  // When selection changes, re-aim at 20° toward the new pivot.
+  useEffect(() => {
+    aimCameraAtPivot(camera, pivotRef.current)
+  }, [camera, selectedKey])
 
   useEffect(() => {
     const element = gl.domElement
@@ -53,14 +61,13 @@ export function OrbitY({ sensitivity = 0.005 }: OrbitYProps) {
       const angle = -dx * sensitivity
       const cos = Math.cos(angle)
       const sin = Math.sin(angle)
-      const { x: px, y: py, z: pz } = pivotRef.current
-      const rx = camera.position.x - px
-      const rz = camera.position.z - pz
+      const pivotNow = pivotRef.current
+      const rx = camera.position.x - pivotNow.x
+      const rz = camera.position.z - pivotNow.z
 
-      camera.position.x = px + rx * cos + rz * sin
-      camera.position.z = pz - rx * sin + rz * cos
-      camera.lookAt(px, py, pz)
-      camera.updateProjectionMatrix()
+      camera.position.x = pivotNow.x + rx * cos + rz * sin
+      camera.position.z = pivotNow.z - rx * sin + rz * cos
+      aimCameraAtPivot(camera, pivotNow)
     }
 
     const endDrag = (event: PointerEvent) => {

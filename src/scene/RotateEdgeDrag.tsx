@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { useThree } from '@react-three/fiber'
 import { rotateObjectAroundEdge } from '../store/objectsSlice.ts'
+import { primarySelectedId } from '../store/selection.ts'
 import { useAppDispatch, useAppSelector } from '../store/hooks.ts'
 
 type RotateEdgeDragProps = {
@@ -12,14 +13,14 @@ export function RotateEdgeDrag({ stepPixels = 72 }: RotateEdgeDragProps) {
   const gl = useThree((state) => state.gl)
   const dispatch = useAppDispatch()
   const rotateEdit = useAppSelector((state) => state.objects.rotateEdit)
-  const selectedId = useAppSelector((state) => state.objects.selectedId)
+  const selectedIds = useAppSelector((state) => state.objects.selectedIds)
   const dragPlane = useAppSelector((state) => state.objects.dragPlane)
 
   const rotateEditRef = useRef(rotateEdit)
-  const selectedIdRef = useRef(selectedId)
+  const selectedIdRef = useRef(primarySelectedId(selectedIds))
   const dragPlaneRef = useRef(dragPlane)
   rotateEditRef.current = rotateEdit
-  selectedIdRef.current = selectedId
+  selectedIdRef.current = primarySelectedId(selectedIds)
   dragPlaneRef.current = dragPlane
 
   useEffect(() => {

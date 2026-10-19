@@ -1,7 +1,15 @@
 import { createSlice, type PayloadAction, nanoid } from '@reduxjs/toolkit'
 import { positionToMatchCorners, type CornerId } from './corners.ts'
-import { pastePositionBeside } from './pasteOffset.ts'
-import { rotateAroundEdge } from './rotateAroundEdge.ts'
+import { pasteGroupDeltaX } from './pasteOffset.ts'
+import {
+  edgeWorldPivotAndAxis,
+  rotateAroundWorldAxis,
+} from './rotateAroundEdge.ts'
+import {
+  expandWithGroup,
+  isGroupSelection,
+  primarySelectedId,
+} from './selection.ts'
 import { DEFAULT_SIZE_EDGE, type SizeEdge } from './sizeEdge.ts'
 
 export type ObjectType = 'cube' | 'box' | 'sphere'
@@ -19,20 +27,49 @@ export type SceneObject = {
   rotation: Vec3
   position: Vec3
   color: string
+  groupId: string | null
 }
 
 /** Object payload without id — used by yank / cut / paste. */
-export type ClipboardObject = Omit<SceneObject, 'id'>
+export type ClipboardObject = Omit<SceneObject, 'id' | 'groupId'>
+
+export type ClipboardState = {
+  objects: ClipboardObject[]
+  asGroup: boolean
+}
 
 export const DEFAULT_OBJECT_COLOR = '#f5f5f2'
 
-function cloneClipboard(item: SceneObject | ClipboardObject): ClipboardObject {
+function cloneClipboardObject(
+  item: SceneObject | ClipboardObject,
+): ClipboardObject {
   return {
     type: item.type,
     size: { ...item.size },
     rotation: { ...item.rotation },
     position: { ...item.position },
     color: item.color,
+  }
+}
+
+function clearSelectionModes(state: ObjectsState) {
+  state.sizeEdit = null
+  state.rotateEdit = null
+  state.dragPlane = null
+  state.align = null
+  state.commandMenu = closedMenu
+}
+
+function dissolveSingletonGroups(state: ObjectsState) {
+  const counts = new Map<string, number>()
+  for (const item of state.items) {
+    if (!item.groupId) continue
+    counts.set(item.groupId, (counts.get(item.groupId) ?? 0) + 1)
+  }
+  for (const item of state.items) {
+    if (item.groupId && (counts.get(item.groupId) ?? 0) < 2) {
+      item.groupId = null
+    }
   }
 }
 
@@ -64,8 +101,8 @@ export type EdgeEditState = {
 
 export type ObjectsState = {
   items: SceneObject[]
-  selectedId: string | null
-  clipboard: ClipboardObject | null
+  selectedIds: string[]
+  clipboard: ClipboardState | null
   commandMenu: {
     open: boolean
     mode: MenuMode
@@ -101,7 +138,7 @@ const closedMenu = {
 
 const initialState: ObjectsState = {
   items: [],
-  selectedId: null,
+  selectedIds: [],
   clipboard: null,
   commandMenu: closedMenu,
   sizeEdit: null,
@@ -128,6 +165,7 @@ const objectsSlice = createSlice({
             rotation: { ...defaults.rotation },
             position: { x: 0, y: 0, z: 0 },
             color: DEFAULT_OBJECT_COLOR,
+            groupId: null,
           } satisfies SceneObject,
         }
       },
@@ -137,14 +175,16 @@ const objectsSlice = createSlice({
       action: PayloadAction<{ id: string | null; openMenu?: boolean }>,
     ) {
       const { id, openMenu = false } = action.payload
-      state.selectedId = id
       state.sizeEdit = null
       state.rotateEdit = null
 
       if (!id) {
+        state.selectedIds = []
         state.commandMenu = closedMenu
         return
       }
+
+      state.selectedIds = expandWithGroup(state.items, id)
 
       if (
         !openMenu ||
@@ -155,6 +195,28 @@ const objectsSlice = createSlice({
         return
       }
 
+      state.commandMenu = {
+        open: true,
+        mode: 'object',
+        level: 'root',
+      }
+    },
+    /** Shift+click: add object (and its group) to the current selection. */
+    addToSelection(state, action: PayloadAction<string>) {
+      if (state.selectedIds.length === 0) {
+        state.selectedIds = expandWithGroup(state.items, action.payload)
+        state.commandMenu = closedMenu
+        return
+      }
+      const next = expandWithGroup(state.items, action.payload)
+      const rest = state.selectedIds.filter((id) => !next.includes(id))
+      state.selectedIds = [...rest, ...next]
+      state.commandMenu = closedMenu
+    },
+    /** Open object menu for the current selection without changing it. */
+    openObjectMenu(state) {
+      if (state.selectedIds.length === 0) return
+      if (state.dragPlane || state.align?.phase === 'pickTarget') return
       state.commandMenu = {
         open: true,
         mode: 'object',
@@ -179,7 +241,7 @@ const objectsSlice = createSlice({
       state.commandMenu = closedMenu
     },
     startSizeEdit(state) {
-      if (!state.selectedId) return
+      if (state.selectedIds.length !== 1) return
       state.sizeEdit = { edge: { ...DEFAULT_SIZE_EDGE }, formOpen: false }
       state.rotateEdit = null
       state.dragPlane = null
@@ -203,7 +265,7 @@ const objectsSlice = createSlice({
       state.sizeEdit = null
     },
     startRotateEdit(state) {
-      if (!state.selectedId) return
+      if (state.selectedIds.length === 0) return
       state.rotateEdit = { edge: { ...DEFAULT_SIZE_EDGE }, formOpen: false }
       state.sizeEdit = null
       state.dragPlane = null
@@ -227,7 +289,7 @@ const objectsSlice = createSlice({
       state.rotateEdit = null
     },
     startDrag(state, action: PayloadAction<DragPlane>) {
-      if (!state.selectedId) return
+      if (state.selectedIds.length === 0) return
       state.dragPlane = action.payload
       state.align = null
       state.sizeEdit = null
@@ -238,7 +300,7 @@ const objectsSlice = createSlice({
       state.dragPlane = null
     },
     startAlign(state, action: PayloadAction<CornerId>) {
-      if (!state.selectedId) return
+      if (state.selectedIds.length !== 1) return
       state.align = { phase: 'pickTarget', sourceCorner: action.payload }
       state.dragPlane = null
       state.sizeEdit = null
@@ -247,7 +309,8 @@ const objectsSlice = createSlice({
     },
     pickAlignTarget(state, action: PayloadAction<string>) {
       if (!state.align || state.align.phase !== 'pickTarget') return
-      if (!state.selectedId || action.payload === state.selectedId) return
+      const primary = primarySelectedId(state.selectedIds)
+      if (!primary || action.payload === primary) return
       state.align = {
         phase: 'pickTargetCorner',
         sourceCorner: state.align.sourceCorner,
@@ -270,14 +333,10 @@ const objectsSlice = createSlice({
     },
     removeObject(state, action: PayloadAction<string>) {
       state.items = state.items.filter((item) => item.id !== action.payload)
-      if (state.selectedId === action.payload) {
-        state.selectedId = null
-        state.sizeEdit = null
-        state.rotateEdit = null
-        state.commandMenu = closedMenu
-        state.dragPlane = null
-        state.align = null
-      }
+      state.selectedIds = state.selectedIds.filter(
+        (id) => id !== action.payload,
+      )
+      dissolveSingletonGroups(state)
       if (
         state.align &&
         'targetId' in state.align &&
@@ -287,49 +346,91 @@ const objectsSlice = createSlice({
         state.commandMenu = closedMenu
       }
     },
-    /** Y — copy selected object into clipboard without removing it. */
+    /** Y — copy selection into clipboard without removing. */
     yankSelected(state) {
-      if (!state.selectedId) return
-      const item = state.items.find((entry) => entry.id === state.selectedId)
-      if (!item) return
-      state.clipboard = cloneClipboard(item)
-      state.commandMenu = closedMenu
-    },
-    /** X / Delete — yank selected object, then remove it. */
-    cutSelected(state) {
-      if (!state.selectedId) return
-      const id = state.selectedId
-      const item = state.items.find((entry) => entry.id === id)
-      if (!item) return
-      state.clipboard = cloneClipboard(item)
-      state.items = state.items.filter((entry) => entry.id !== id)
-      state.selectedId = null
-      state.sizeEdit = null
-      state.rotateEdit = null
-      state.commandMenu = closedMenu
-      state.dragPlane = null
-      state.align = null
-    },
-    /** P — paste clipboard (size/rotation/color preserved), offset so AABBs don't overlap. */
-    pasteClipboard(state) {
-      if (!state.clipboard) return
-      const source = state.clipboard
-      const copy: SceneObject = {
-        id: nanoid(),
-        type: source.type,
-        size: { ...source.size },
-        rotation: { ...source.rotation },
-        position: pastePositionBeside(source),
-        color: source.color,
+      if (state.selectedIds.length === 0) return
+      const objects = state.selectedIds
+        .map((id) => state.items.find((entry) => entry.id === id))
+        .filter((item): item is SceneObject => Boolean(item))
+        .map(cloneClipboardObject)
+      if (objects.length === 0) return
+      state.clipboard = {
+        objects,
+        asGroup: isGroupSelection(state.items, state.selectedIds),
       }
-      state.items.push(copy)
-      state.selectedId = copy.id
-      // Next paste offsets from this copy, keeping the same size/rotation/color.
-      state.clipboard = cloneClipboard(copy)
-      state.sizeEdit = null
-      state.rotateEdit = null
-      state.dragPlane = null
-      state.align = null
+      state.commandMenu = closedMenu
+    },
+    /** X / Delete — yank selection, then remove it. */
+    cutSelected(state) {
+      if (state.selectedIds.length === 0) return
+      const ids = [...state.selectedIds]
+      const objects = ids
+        .map((id) => state.items.find((entry) => entry.id === id))
+        .filter((item): item is SceneObject => Boolean(item))
+        .map(cloneClipboardObject)
+      if (objects.length === 0) return
+      state.clipboard = {
+        objects,
+        asGroup: isGroupSelection(state.items, state.selectedIds),
+      }
+      state.items = state.items.filter((entry) => !ids.includes(entry.id))
+      state.selectedIds = []
+      dissolveSingletonGroups(state)
+      clearSelectionModes(state)
+    },
+    /** P — paste clipboard, offset so AABBs don't overlap. */
+    pasteClipboard(state) {
+      if (!state.clipboard || state.clipboard.objects.length === 0) return
+      const deltaX = pasteGroupDeltaX(state.clipboard.objects)
+      const groupId =
+        state.clipboard.asGroup && state.clipboard.objects.length > 1
+          ? nanoid()
+          : null
+      const newIds: string[] = []
+      for (const source of state.clipboard.objects) {
+        const copy: SceneObject = {
+          id: nanoid(),
+          type: source.type,
+          size: { ...source.size },
+          rotation: { ...source.rotation },
+          position: {
+            x: source.position.x + deltaX,
+            y: source.position.y,
+            z: source.position.z,
+          },
+          color: source.color,
+          groupId,
+        }
+        state.items.push(copy)
+        newIds.push(copy.id)
+      }
+      state.selectedIds = newIds
+      state.clipboard = {
+        objects: newIds
+          .map((id) => state.items.find((entry) => entry.id === id)!)
+          .map(cloneClipboardObject),
+        asGroup: Boolean(groupId),
+      }
+      clearSelectionModes(state)
+    },
+    /** G — group current multi-selection. */
+    groupSelected(state) {
+      if (state.selectedIds.length < 2) return
+      const groupId = nanoid()
+      for (const id of state.selectedIds) {
+        const item = state.items.find((entry) => entry.id === id)
+        if (item) item.groupId = groupId
+      }
+      dissolveSingletonGroups(state)
+      state.commandMenu = closedMenu
+    },
+    /** Shift+G — ungroup when a group is selected. */
+    ungroupSelected(state) {
+      if (!isGroupSelection(state.items, state.selectedIds)) return
+      for (const id of state.selectedIds) {
+        const item = state.items.find((entry) => entry.id === id)
+        if (item) item.groupId = null
+      }
       state.commandMenu = closedMenu
     },
     updateObjectSize(
@@ -339,6 +440,21 @@ const objectsSlice = createSlice({
       const item = state.items.find((entry) => entry.id === action.payload.id)
       if (!item) return
       item.size = { ...item.size, ...action.payload.size }
+    },
+    translateSelected(
+      state,
+      action: PayloadAction<{ delta: Vec3 }>,
+    ) {
+      const { delta } = action.payload
+      for (const id of state.selectedIds) {
+        const item = state.items.find((entry) => entry.id === id)
+        if (!item) continue
+        item.position = {
+          x: item.position.x + delta.x,
+          y: item.position.y + delta.y,
+          z: item.position.z + delta.z,
+        }
+      }
     },
     updateObjectPosition(
       state,
@@ -364,6 +480,16 @@ const objectsSlice = createSlice({
       if (!item) return
       item.color = action.payload.color
     },
+    /** Recolor every selected object. */
+    updateSelectedColor(state, action: PayloadAction<string>) {
+      for (const id of state.selectedIds) {
+        const item = state.items.find((entry) => entry.id === id)
+        if (item) item.color = action.payload
+      }
+    },
+    /**
+     * Rotate selection around an edge of `id` (rigid for the whole selection).
+     */
     rotateObjectAroundEdge(
       state,
       action: PayloadAction<{
@@ -372,17 +498,34 @@ const objectsSlice = createSlice({
         degrees: -90 | 90 | 180
       }>,
     ) {
-      const item = state.items.find((entry) => entry.id === action.payload.id)
-      if (!item) return
-      const next = rotateAroundEdge(
-        item.position,
-        item.rotation,
-        item.size,
-        action.payload.edge,
-        (action.payload.degrees * Math.PI) / 180,
+      const primary = state.items.find(
+        (entry) => entry.id === action.payload.id,
       )
-      item.position = next.position
-      item.rotation = next.rotation
+      if (!primary) return
+      const { pivot, axis } = edgeWorldPivotAndAxis(
+        primary.position,
+        primary.rotation,
+        primary.size,
+        action.payload.edge,
+      )
+      const angle = (action.payload.degrees * Math.PI) / 180
+      const targets =
+        state.selectedIds.includes(primary.id) && state.selectedIds.length > 0
+          ? state.selectedIds
+          : [primary.id]
+      for (const id of targets) {
+        const item = state.items.find((entry) => entry.id === id)
+        if (!item) continue
+        const next = rotateAroundWorldAxis(
+          item.position,
+          item.rotation,
+          pivot,
+          axis,
+          angle,
+        )
+        item.position = next.position
+        item.rotation = next.rotation
+      }
     },
     alignObjectCorners(
       state,
@@ -413,6 +556,8 @@ const objectsSlice = createSlice({
 export const {
   addObject,
   selectObject,
+  addToSelection,
+  openObjectMenu,
   toggleSpaceMenu,
   setMenuLevel,
   closeCommandMenu,
@@ -436,10 +581,14 @@ export const {
   yankSelected,
   cutSelected,
   pasteClipboard,
+  groupSelected,
+  ungroupSelected,
   updateObjectSize,
+  translateSelected,
   updateObjectPosition,
   updateObjectRotation,
   updateObjectColor,
+  updateSelectedColor,
   rotateObjectAroundEdge,
   alignObjectCorners,
 } = objectsSlice.actions

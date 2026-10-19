@@ -16,9 +16,11 @@ const ACTIONS: { id: string; label: string; degrees: -90 | 90 | 180 }[] = [
 export function RotateForm({ formRef }: RotateFormProps) {
   const dispatch = useAppDispatch()
   const rotateEdit = useAppSelector((state) => state.objects.rotateEdit)
-  const selected = useAppSelector((state) =>
-    state.objects.items.find((item) => item.id === state.objects.selectedId),
-  )
+  const selected = useAppSelector((state) => {
+    const ids = state.objects.selectedIds
+    const primary = ids.length > 0 ? ids[ids.length - 1] : null
+    return state.objects.items.find((item) => item.id === primary)
+  })
 
   if (!rotateEdit?.formOpen || !selected) return null
 
