@@ -85,7 +85,7 @@ export type AlignState =
       targetId: string
     }
 
-export type MenuLevel = 'root' | 'insert' | 'color' | 'move'
+export type MenuLevel = 'root' | 'insert' | 'file' | 'color' | 'move'
 
 export type MenuMode = 'space' | 'object'
 
@@ -171,6 +171,20 @@ const objectsSlice = createSlice({
           } satisfies SceneObject,
         }
       },
+    },
+    /** Replace the whole scene (File → Load). */
+    loadScene(state, action: PayloadAction<SceneObject[]>) {
+      state.items = action.payload
+      state.selectedIds = action.payload.map((item) => item.id)
+      state.clipboard = null
+      clearSelectionModes(state)
+    },
+    /** Append objects to the scene (File → Import). */
+    importScene(state, action: PayloadAction<SceneObject[]>) {
+      if (action.payload.length === 0) return
+      state.items.push(...action.payload)
+      state.selectedIds = action.payload.map((item) => item.id)
+      clearSelectionModes(state)
     },
     selectObject(
       state,
@@ -603,6 +617,8 @@ const objectsSlice = createSlice({
 
 export const {
   addObject,
+  loadScene,
+  importScene,
   selectObject,
   addToSelection,
   openObjectMenu,

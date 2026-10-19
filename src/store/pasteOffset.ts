@@ -79,3 +79,14 @@ export function pasteGroupDeltaX(sources: PasteSource[]): number {
   const { minX, maxX } = worldAabb(sources)
   return maxX - minX + PASTE_GAP
 }
+
+/** Delta X so `incoming` sits just to the right of `existing`. */
+export function importPlacementDeltaX(
+  existing: PasteSource[],
+  incoming: PasteSource[],
+): number {
+  if (incoming.length === 0 || existing.length === 0) return 0
+  const ex = worldAabb(existing)
+  const inc = worldAabb(incoming)
+  return ex.maxX + PASTE_GAP - inc.minX
+}

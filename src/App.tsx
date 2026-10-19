@@ -25,8 +25,8 @@ function App() {
       <aside className="panel">
         <h1>fntr</h1>
         <p>
-          <kbd>Space</kbd> — Insert. ЛКМ — выбор, Shift+ЛКМ — добавить, ПКМ —
-          меню. <kbd>G</kbd> — group, <kbd>Shift+G</kbd> — ungroup.{' '}
+          <kbd>Space</kbd> — Insert / File. ЛКМ — выбор, Shift+ЛКМ — добавить,
+          ПКМ — меню. <kbd>G</kbd> — group, <kbd>Shift+G</kbd> — ungroup.{' '}
           <kbd>X</kbd>/<kbd>Y</kbd>/<kbd>P</kbd> — cut/yank/paste.
         </p>
 

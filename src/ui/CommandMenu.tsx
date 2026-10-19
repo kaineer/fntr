@@ -1,10 +1,12 @@
 import { useEffect } from 'react'
-import type { DragPlane, ObjectType } from '../store/objectsSlice.ts'
+import type { DragPlane, MenuLevel, ObjectType } from '../store/objectsSlice.ts'
 import {
   addObject,
   closeCommandMenu,
   cutSelected,
   groupSelected,
+  importScene,
+  loadScene,
   openRotateForm,
   openSizeForm,
   pasteClipboard,
@@ -18,6 +20,12 @@ import {
   updateSelectedColor,
   yankSelected,
 } from '../store/objectsSlice.ts'
+import {
+  downloadSceneYaml,
+  objectsForImport,
+  objectsForLoad,
+  pickSceneYamlFile,
+} from '../io/sceneFile.ts'
 import { isGroupSelection, primarySelectedId } from '../store/selection.ts'
 import { useAppDispatch, useAppSelector } from '../store/hooks.ts'
 
@@ -41,6 +49,13 @@ const MOVE_PLANES: { id: DragPlane; label: string }[] = [
   { id: 'xz', label: 'XZ' },
   { id: 'yz', label: 'YZ' },
 ]
+
+const MENU_LEVEL_LABELS: Partial<Record<MenuLevel, string>> = {
+  insert: 'Insert',
+  file: 'File',
+  color: 'Color',
+  move: 'Move',
+}
 
 export function CommandMenu() {
   const dispatch = useAppDispatch()
@@ -170,6 +185,28 @@ export function CommandMenu() {
     closeMenu()
   }
 
+  const saveScene = () => {
+    if (items.length === 0) return
+    downloadSceneYaml(items)
+    closeMenu()
+  }
+
+  const loadFromFile = () => {
+    void pickSceneYamlFile().then((file) => {
+      if (!file) return
+      dispatch(loadScene(objectsForLoad(file)))
+      closeMenu()
+    })
+  }
+
+  const importFromFile = () => {
+    void pickSceneYamlFile().then((file) => {
+      if (!file) return
+      dispatch(importScene(objectsForImport(file, items)))
+      closeMenu()
+    })
+  }
+
   const objectActions: MenuItem[] = [
     ...(!multi
       ? [
@@ -238,8 +275,7 @@ export function CommandMenu() {
     },
   ]
 
-  const headerLabel =
-    level === 'insert' ? 'Insert' : level === 'color' ? 'Color' : level === 'move' ? 'Move' : null
+  const headerLabel = MENU_LEVEL_LABELS[level] ?? null
 
   const goBack = () => {
     dispatch(setMenuLevel('root'))
@@ -255,6 +291,11 @@ export function CommandMenu() {
               label: 'Insert',
               onSelect: () => dispatch(setMenuLevel('insert')),
             },
+            {
+              id: 'file',
+              label: 'File',
+              onSelect: () => dispatch(setMenuLevel('file')),
+            },
             ...(selectedId ? objectActions : []),
           ]
         : objectActions
@@ -266,6 +307,14 @@ export function CommandMenu() {
         label: 'Sphere',
         onSelect: () => insertObject('sphere'),
       },
+    ]
+  } else if (level === 'file') {
+    menuItems = [
+      ...(items.length > 0
+        ? [{ id: 'save', label: 'Save', onSelect: saveScene }]
+        : []),
+      { id: 'load', label: 'Load', onSelect: loadFromFile },
+      { id: 'import', label: 'Import', onSelect: importFromFile },
     ]
   } else if (level === 'color') {
     menuItems = OBJECT_COLORS.map((entry) => ({
