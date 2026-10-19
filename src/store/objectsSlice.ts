@@ -12,7 +12,7 @@ import {
 } from './selection.ts'
 import { DEFAULT_SIZE_EDGE, type SizeEdge } from './sizeEdge.ts'
 
-export type ObjectType = 'cube' | 'box' | 'sphere'
+export type ObjectType = 'cube' | 'sphere'
 
 export type Vec3 = {
   x: number
@@ -120,10 +120,6 @@ const defaultsByType: Record<ObjectType, Pick<SceneObject, 'size' | 'rotation'>>
   {
     cube: {
       size: { x: 1, y: 1, z: 1 },
-      rotation: { x: 0, y: 0, z: 0 },
-    },
-    box: {
-      size: { x: 2, y: 1, z: 0.75 },
       rotation: { x: 0, y: 0, z: 0 },
     },
     sphere: {
@@ -282,15 +278,15 @@ const objectsSlice = createSlice({
     },
     startRotateEdit(state) {
       if (state.selectedIds.length === 0) return
-      const boxId =
+      const edgeOwnerId =
         state.selectedIds.find((id) => {
           const item = state.items.find((entry) => entry.id === id)
-          return item?.type === 'cube' || item?.type === 'box'
+          return item?.type === 'cube'
         }) ?? primarySelectedId(state.selectedIds)
-      if (!boxId) return
+      if (!edgeOwnerId) return
       state.rotateEdit = {
         edge: { ...DEFAULT_SIZE_EDGE },
-        edgeObjectId: boxId,
+        edgeObjectId: edgeOwnerId,
         formOpen: false,
       }
       state.sizeEdit = null
@@ -334,7 +330,7 @@ const objectsSlice = createSlice({
       if (state.selectedIds.length !== 1) return
       const primary = primarySelectedId(state.selectedIds)
       const item = state.items.find((entry) => entry.id === primary)
-      if (!item || (item.type !== 'cube' && item.type !== 'box')) return
+      if (!item || item.type !== 'cube') return
       state.align = { phase: 'pickSourceCorner' }
       state.dragPlane = null
       state.sizeEdit = null
@@ -359,7 +355,7 @@ const objectsSlice = createSlice({
       const primary = primarySelectedId(state.selectedIds)
       if (!primary || action.payload === primary) return
       const target = state.items.find((entry) => entry.id === action.payload)
-      if (!target || (target.type !== 'cube' && target.type !== 'box')) return
+      if (!target || target.type !== 'cube') return
       state.align = {
         phase: 'pickTargetCorner',
         sourceCorner: state.align.sourceCorner,

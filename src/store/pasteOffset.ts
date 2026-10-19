@@ -7,7 +7,7 @@ type Vec3 = {
 }
 
 type PasteSource = {
-  type: 'cube' | 'box' | 'sphere'
+  type: 'cube' | 'sphere'
   size: Vec3
   rotation: Vec3
   position: Vec3

@@ -30,7 +30,9 @@ export type SceneFile = {
 }
 
 function normalizeType(type: unknown): ObjectType | null {
-  if (type === 'cube' || type === 'sphere' || type === 'box') return type
+  if (type === 'cube' || type === 'sphere') return type
+  // Legacy alias from older scene files.
+  if (type === 'box') return 'cube'
   return null
 }
 
@@ -55,7 +57,7 @@ export function buildSceneFile(objects: SceneObject[]): SceneFile {
     version: SCENE_FILE_VERSION,
     origin,
     objects: objects.map((object) => ({
-      type: object.type === 'box' ? 'cube' : object.type,
+      type: object.type,
       size: roundVec(object.size),
       color: object.color,
       offset: roundVec({
@@ -132,7 +134,7 @@ export function sceneFileToObjects(
 ): SceneObject[] {
   return file.objects.map((object) => ({
     id: nanoid(),
-    type: object.type === 'box' ? 'cube' : object.type,
+    type: object.type,
     size: { ...object.size },
     color: object.color,
     rotation: degToRad(object.rotation),

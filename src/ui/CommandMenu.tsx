@@ -66,8 +66,7 @@ export function CommandMenu() {
   const rotateEdit = useAppSelector((state) => state.objects.rotateEdit)
   const selectedId = primarySelectedId(selectedIds)
   const selectedItem = items.find((item) => item.id === selectedId)
-  const isBox =
-    selectedItem?.type === 'cube' || selectedItem?.type === 'box'
+  const isCube = selectedItem?.type === 'cube'
   const multi = selectedIds.length > 1
   const groupSelectedActive = isGroupSelection(items, selectedIds)
   const selectedColor = selectedItem?.color
@@ -232,7 +231,7 @@ export function CommandMenu() {
       label: 'Move',
       onSelect: () => dispatch(setMenuLevel('move')),
     },
-    ...(!multi && isBox
+    ...(!multi && isCube
       ? [
           {
             id: 'align',

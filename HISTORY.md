@@ -80,4 +80,13 @@
 - Отмена Esc / «Отмена» на любом шаге; меню углов убрано
 
 ### Insert
-- Из меню Insert убран Box (достаточно Cube + Size)
+- Тип объекта `box` удалён; остались `cube` и `sphere` (некубические размеры — через Size)
+- В YAML старый `type: box` при Load/Import читается как `cube`
+
+### File: Save / Load / Import
+- `Space` → File → Save / Load / Import
+- Формат `scene.yaml` (пакет `yaml`): version, origin (центроид), objects с type / size / color / offset / rotation (градусы)
+- Save — скачать текущую сцену; offset относительно локального origin
+- Load — заменить сцену содержимым файла (origin файла → мир `(0,0,0)`)
+- Import — вставить на сцену рядом с существующим; при ≥2 объектах — одной группой
+- Разбор/сборка в `src/io/sceneFile.ts`; хелперы Vec3 вынесены в `src/shared/lib/vec3.ts`

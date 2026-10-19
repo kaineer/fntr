@@ -53,12 +53,12 @@ export function SceneObjectMesh({ object }: SceneObjectMeshProps) {
   ]
 
   const primaryId = primarySelectedId(selectedIds)
-  const isBox = type === 'cube' || type === 'box'
-  // Size: edges on the single selected box. Rotate: edges on every selected box.
+  const isCube = type === 'cube'
+  // Size: edges on the single selected cube. Rotate: edges on every selected cube.
   const showSizeEdges = Boolean(
-    sizeEdit && selected && primaryId === object.id && isBox,
+    sizeEdit && selected && primaryId === object.id && isCube,
   )
-  const showRotateEdges = Boolean(rotateEdit && selected && isBox)
+  const showRotateEdges = Boolean(rotateEdit && selected && isCube)
   const edgeEditing = showSizeEdges || showRotateEdges
   const activeEdge = showSizeEdges
     ? sizeEdit!.edge
@@ -67,13 +67,13 @@ export function SceneObjectMesh({ object }: SceneObjectMeshProps) {
       : null
 
   const showSourceCorners = Boolean(
-    isBox &&
+    isCube &&
       selected &&
       primaryId === object.id &&
       (align?.phase === 'pickSourceCorner' || align?.phase === 'pickTarget'),
   )
   const showTargetCorners = Boolean(
-    isBox &&
+    isCube &&
       align?.phase === 'pickTargetCorner' &&
       align.targetId === object.id,
   )
