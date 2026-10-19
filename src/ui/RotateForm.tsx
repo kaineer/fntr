@@ -16,13 +16,12 @@ const ACTIONS: { id: string; label: string; degrees: -90 | 90 | 180 }[] = [
 export function RotateForm({ formRef }: RotateFormProps) {
   const dispatch = useAppDispatch()
   const rotateEdit = useAppSelector((state) => state.objects.rotateEdit)
-  const selected = useAppSelector((state) => {
-    const ids = state.objects.selectedIds
-    const primary = ids.length > 0 ? ids[ids.length - 1] : null
-    return state.objects.items.find((item) => item.id === primary)
+  const edgeOwner = useAppSelector((state) => {
+    const id = state.objects.rotateEdit?.edgeObjectId
+    return state.objects.items.find((item) => item.id === id)
   })
 
-  if (!rotateEdit?.formOpen || !selected) return null
+  if (!rotateEdit?.formOpen || !edgeOwner) return null
 
   return (
     <section
@@ -42,7 +41,7 @@ export function RotateForm({ formRef }: RotateFormProps) {
             onClick={() =>
               dispatch(
                 rotateObjectAroundEdge({
-                  id: selected.id,
+                  id: edgeOwner.id,
                   edge: rotateEdit.edge,
                   degrees: action.degrees,
                 }),

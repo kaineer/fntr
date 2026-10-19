@@ -20,7 +20,6 @@ export function ModeBanner() {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.code !== 'Escape') return
       if (!dragPlane && !align && !sizeEdit && !rotateEdit) return
-      if (align?.phase === 'pickTargetCorner') return
       event.preventDefault()
       event.stopImmediatePropagation()
       dispatch(clearInteractionModes())
@@ -50,10 +49,32 @@ export function ModeBanner() {
     )
   }
 
+  if (align?.phase === 'pickSourceCorner') {
+    return (
+      <div className="mode-banner">
+        Align — выберите вершину на объекте. Esc — отмена
+        <button type="button" onClick={() => dispatch(clearAlign())}>
+          Отмена
+        </button>
+      </div>
+    )
+  }
+
   if (align?.phase === 'pickTarget') {
     return (
       <div className="mode-banner">
-        Align {align.sourceCorner} — кликните целевой объект. Esc — отмена
+        Align — кликните целевой параллелепипед. Esc — отмена
+        <button type="button" onClick={() => dispatch(clearAlign())}>
+          Отмена
+        </button>
+      </div>
+    )
+  }
+
+  if (align?.phase === 'pickTargetCorner') {
+    return (
+      <div className="mode-banner">
+        Align — выберите вершину на цели. Esc — отмена
         <button type="button" onClick={() => dispatch(clearAlign())}>
           Отмена
         </button>
@@ -76,8 +97,8 @@ export function ModeBanner() {
   if (rotateEdit) {
     return (
       <div className="mode-banner">
-        Rotate {sizeEdgeLabel(rotateEdit.edge)} — клик по ребру · Shift+ЛКМ —
-        ±90° · Space — форма. Esc — выход
+        Rotate {sizeEdgeLabel(rotateEdit.edge)} — ребро на любом боксе ·
+        Shift+ЛКМ — ±90° · Space — форма. Esc — выход
         <button type="button" onClick={() => dispatch(exitRotateEdit())}>
           Готово
         </button>

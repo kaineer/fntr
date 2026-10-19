@@ -1,9 +1,7 @@
 import { useEffect } from 'react'
-import type { CornerId, DragPlane, ObjectType } from '../store/objectsSlice.ts'
+import type { DragPlane, ObjectType } from '../store/objectsSlice.ts'
 import {
   addObject,
-  alignObjectCorners,
-  clearAlign,
   closeCommandMenu,
   cutSelected,
   groupSelected,
@@ -21,7 +19,6 @@ import {
   yankSelected,
 } from '../store/objectsSlice.ts'
 import { isGroupSelection, primarySelectedId } from '../store/selection.ts'
-import { CORNERS } from '../store/corners.ts'
 import { useAppDispatch, useAppSelector } from '../store/hooks.ts'
 
 type MenuItem = {
@@ -53,21 +50,17 @@ export function CommandMenu() {
   const sizeEdit = useAppSelector((state) => state.objects.sizeEdit)
   const rotateEdit = useAppSelector((state) => state.objects.rotateEdit)
   const selectedId = primarySelectedId(selectedIds)
+  const selectedItem = items.find((item) => item.id === selectedId)
+  const isBox =
+    selectedItem?.type === 'cube' || selectedItem?.type === 'box'
   const multi = selectedIds.length > 1
   const groupSelectedActive = isGroupSelection(items, selectedIds)
-  const selectedColor = useAppSelector((state) => {
-    const primary = primarySelectedId(state.objects.selectedIds)
-    const selected = state.objects.items.find((item) => item.id === primary)
-    return selected?.color
-  })
+  const selectedColor = selectedItem?.color
   const { open, mode, level } = useAppSelector(
     (state) => state.objects.commandMenu,
   )
 
   const closeMenu = () => {
-    if (align?.phase === 'pickTargetCorner') {
-      dispatch(clearAlign())
-    }
     dispatch(closeCommandMenu())
   }
 
@@ -107,9 +100,6 @@ export function CommandMenu() {
       if (event.code === 'Escape' && open) {
         event.preventDefault()
         event.stopImmediatePropagation()
-        if (align?.phase === 'pickTargetCorner') {
-          dispatch(clearAlign())
-        }
         dispatch(closeCommandMenu())
         return
       }
@@ -180,18 +170,6 @@ export function CommandMenu() {
     closeMenu()
   }
 
-  const applyAlignTarget = (targetCorner: CornerId) => {
-    if (!selectedId || align?.phase !== 'pickTargetCorner') return
-    dispatch(
-      alignObjectCorners({
-        id: selectedId,
-        sourceCorner: align.sourceCorner,
-        targetId: align.targetId,
-        targetCorner,
-      }),
-    )
-  }
-
   const objectActions: MenuItem[] = [
     ...(!multi
       ? [
@@ -217,12 +195,12 @@ export function CommandMenu() {
       label: 'Move',
       onSelect: () => dispatch(setMenuLevel('move')),
     },
-    ...(!multi
+    ...(!multi && isBox
       ? [
           {
             id: 'align',
             label: 'Align',
-            onSelect: () => dispatch(setMenuLevel('align')),
+            onSelect: () => dispatch(startAlign()),
           },
         ]
       : []),
@@ -261,24 +239,9 @@ export function CommandMenu() {
   ]
 
   const headerLabel =
-    level === 'insert'
-      ? 'Insert'
-      : level === 'color'
-        ? 'Color'
-        : level === 'move'
-          ? 'Move'
-          : level === 'align'
-            ? 'Align'
-            : level === 'alignTarget'
-              ? 'Align to'
-              : null
+    level === 'insert' ? 'Insert' : level === 'color' ? 'Color' : level === 'move' ? 'Move' : null
 
   const goBack = () => {
-    if (level === 'alignTarget') {
-      dispatch(clearAlign())
-      dispatch(closeCommandMenu())
-      return
-    }
     dispatch(setMenuLevel('root'))
   }
 
@@ -317,18 +280,6 @@ export function CommandMenu() {
       id: plane.id,
       label: plane.label,
       onSelect: () => dispatch(startDrag(plane.id)),
-    }))
-  } else if (level === 'align') {
-    menuItems = CORNERS.map((corner) => ({
-      id: corner.id,
-      label: corner.label,
-      onSelect: () => dispatch(startAlign(corner.id)),
-    }))
-  } else if (level === 'alignTarget') {
-    menuItems = CORNERS.map((corner) => ({
-      id: corner.id,
-      label: corner.label,
-      onSelect: () => applyAlignTarget(corner.id),
     }))
   }
 

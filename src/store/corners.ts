@@ -27,12 +27,21 @@ export const CORNERS: { id: CornerId; letter: string; label: string }[] = [
   { id: 'XYZ', letter: 'h', label: 'h: XYZ' },
 ]
 
-function localCornerOffset(size: Vec3, corner: CornerId): Vector3 {
+export function localCornerOffset(size: Vec3, corner: CornerId): Vector3 {
   return new Vector3(
     (corner[0] === 'X' ? 1 : -1) * (size.x / 2),
     (corner[1] === 'Y' ? 1 : -1) * (size.y / 2),
     (corner[2] === 'Z' ? 1 : -1) * (size.z / 2),
   )
+}
+
+/** Local-space corner position for handles inside an object group. */
+export function cornerLocalPosition(
+  size: Vec3,
+  corner: CornerId,
+): [number, number, number] {
+  const offset = localCornerOffset(size, corner)
+  return [offset.x, offset.y, offset.z]
 }
 
 function worldCorner(

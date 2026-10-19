@@ -10,22 +10,28 @@ import type { Vec3 } from '../store/objectsSlice.ts'
 
 const EDGE_THICKNESS = 0.07
 const EDGE_HIGHLIGHT = '#f4a261'
+const EDGE_PREVIEW = '#6ea8fe'
 
 type EdgeHandlesProps = {
   size: Vec3
-  selectedEdge: SizeEdge
+  selectedEdge: SizeEdge | null
   onSelect: (edge: SizeEdge) => void
+  /** Draw faint handles for inactive edges (multi-object rotate). */
+  previewInactive?: boolean
 }
 
 export function EdgeHandles({
   size,
   selectedEdge,
   onSelect,
+  previewInactive = false,
 }: EdgeHandlesProps) {
   return (
     <group>
       {SIZE_EDGES.map((edge) => {
-        const active = sizeEdgesEqual(edge, selectedEdge)
+        const active = selectedEdge
+          ? sizeEdgesEqual(edge, selectedEdge)
+          : false
         const { position, args } = sizeEdgeLocal(edge, size, EDGE_THICKNESS)
 
         const onClick = (event: ThreeEvent<MouseEvent>) => {
@@ -47,6 +53,16 @@ export function EdgeHandles({
                   color={EDGE_HIGHLIGHT}
                   emissive={EDGE_HIGHLIGHT}
                   emissiveIntensity={0.55}
+                />
+              </mesh>
+            ) : previewInactive ? (
+              <mesh raycast={() => {}}>
+                <boxGeometry args={args} />
+                <meshBasicMaterial
+                  color={EDGE_PREVIEW}
+                  transparent
+                  opacity={0.4}
+                  depthWrite={false}
                 />
               </mesh>
             ) : null}

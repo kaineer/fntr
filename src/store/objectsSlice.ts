@@ -77,6 +77,7 @@ export type DragPlane = 'xy' | 'xz' | 'yz'
 
 export type AlignState =
   | null
+  | { phase: 'pickSourceCorner' }
   | { phase: 'pickTarget'; sourceCorner: CornerId }
   | {
       phase: 'pickTargetCorner'
@@ -84,18 +85,19 @@ export type AlignState =
       targetId: string
     }
 
-export type MenuLevel =
-  | 'root'
-  | 'insert'
-  | 'color'
-  | 'move'
-  | 'align'
-  | 'alignTarget'
+export type MenuLevel = 'root' | 'insert' | 'color' | 'move'
 
 export type MenuMode = 'space' | 'object'
 
-export type EdgeEditState = {
+export type SizeEditState = {
   edge: SizeEdge
+  formOpen: boolean
+}
+
+export type RotateEditState = {
+  edge: SizeEdge
+  /** Object that owns the active edge (pivot for the whole selection). */
+  edgeObjectId: string
   formOpen: boolean
 }
 
@@ -108,8 +110,8 @@ export type ObjectsState = {
     mode: MenuMode
     level: MenuLevel
   }
-  sizeEdit: EdgeEditState | null
-  rotateEdit: EdgeEditState | null
+  sizeEdit: SizeEditState | null
+  rotateEdit: RotateEditState | null
   dragPlane: DragPlane | null
   align: AlignState
 }
@@ -216,7 +218,7 @@ const objectsSlice = createSlice({
     /** Open object menu for the current selection without changing it. */
     openObjectMenu(state) {
       if (state.selectedIds.length === 0) return
-      if (state.dragPlane || state.align?.phase === 'pickTarget') return
+      if (state.dragPlane || state.align) return
       state.commandMenu = {
         open: true,
         mode: 'object',
@@ -266,15 +268,30 @@ const objectsSlice = createSlice({
     },
     startRotateEdit(state) {
       if (state.selectedIds.length === 0) return
-      state.rotateEdit = { edge: { ...DEFAULT_SIZE_EDGE }, formOpen: false }
+      const boxId =
+        state.selectedIds.find((id) => {
+          const item = state.items.find((entry) => entry.id === id)
+          return item?.type === 'cube' || item?.type === 'box'
+        }) ?? primarySelectedId(state.selectedIds)
+      if (!boxId) return
+      state.rotateEdit = {
+        edge: { ...DEFAULT_SIZE_EDGE },
+        edgeObjectId: boxId,
+        formOpen: false,
+      }
       state.sizeEdit = null
       state.dragPlane = null
       state.align = null
       state.commandMenu = closedMenu
     },
-    setRotateEdge(state, action: PayloadAction<SizeEdge>) {
+    setRotateEdge(
+      state,
+      action: PayloadAction<{ edge: SizeEdge; objectId: string }>,
+    ) {
       if (!state.rotateEdit) return
-      state.rotateEdit.edge = action.payload
+      if (!state.selectedIds.includes(action.payload.objectId)) return
+      state.rotateEdit.edge = action.payload.edge
+      state.rotateEdit.edgeObjectId = action.payload.objectId
     },
     openRotateForm(state) {
       if (!state.rotateEdit) return
@@ -299,28 +316,59 @@ const objectsSlice = createSlice({
     clearDrag(state) {
       state.dragPlane = null
     },
-    startAlign(state, action: PayloadAction<CornerId>) {
+    startAlign(state) {
       if (state.selectedIds.length !== 1) return
-      state.align = { phase: 'pickTarget', sourceCorner: action.payload }
+      const primary = primarySelectedId(state.selectedIds)
+      const item = state.items.find((entry) => entry.id === primary)
+      if (!item || (item.type !== 'cube' && item.type !== 'box')) return
+      state.align = { phase: 'pickSourceCorner' }
       state.dragPlane = null
       state.sizeEdit = null
       state.rotateEdit = null
       state.commandMenu = closedMenu
     },
+    pickAlignSourceCorner(state, action: PayloadAction<CornerId>) {
+      if (!state.align) return
+      if (
+        state.align.phase !== 'pickSourceCorner' &&
+        state.align.phase !== 'pickTarget'
+      ) {
+        return
+      }
+      state.align = {
+        phase: 'pickTarget',
+        sourceCorner: action.payload,
+      }
+    },
     pickAlignTarget(state, action: PayloadAction<string>) {
       if (!state.align || state.align.phase !== 'pickTarget') return
       const primary = primarySelectedId(state.selectedIds)
       if (!primary || action.payload === primary) return
+      const target = state.items.find((entry) => entry.id === action.payload)
+      if (!target || (target.type !== 'cube' && target.type !== 'box')) return
       state.align = {
         phase: 'pickTargetCorner',
         sourceCorner: state.align.sourceCorner,
         targetId: action.payload,
       }
-      state.commandMenu = {
-        open: true,
-        mode: 'object',
-        level: 'alignTarget',
-      }
+      state.commandMenu = closedMenu
+    },
+    pickAlignTargetCorner(state, action: PayloadAction<CornerId>) {
+      if (!state.align || state.align.phase !== 'pickTargetCorner') return
+      const { sourceCorner, targetId } = state.align
+      const primary = primarySelectedId(state.selectedIds)
+      if (!primary) return
+      const source = state.items.find((entry) => entry.id === primary)
+      const target = state.items.find((entry) => entry.id === targetId)
+      if (!source || !target) return
+      source.position = positionToMatchCorners(
+        source,
+        sourceCorner,
+        target,
+        action.payload,
+      )
+      state.align = null
+      state.commandMenu = closedMenu
     },
     clearAlign(state) {
       state.align = null
@@ -574,7 +622,9 @@ export const {
   startDrag,
   clearDrag,
   startAlign,
+  pickAlignSourceCorner,
   pickAlignTarget,
+  pickAlignTargetCorner,
   clearAlign,
   clearInteractionModes,
   removeObject,

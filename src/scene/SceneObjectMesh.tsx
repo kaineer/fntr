@@ -4,7 +4,9 @@ import { Plane, Vector3 } from 'three'
 import {
   addToSelection,
   openObjectMenu,
+  pickAlignSourceCorner,
   pickAlignTarget,
+  pickAlignTargetCorner,
   selectObject,
   setRotateEdge,
   setSizeEdge,
@@ -13,6 +15,7 @@ import {
 } from '../store/objectsSlice.ts'
 import { primarySelectedId } from '../store/selection.ts'
 import { useAppDispatch, useAppSelector } from '../store/hooks.ts'
+import { CornerHandles } from './CornerHandles.tsx'
 import { planeThroughPoint } from './dragPlane.ts'
 import { EdgeHandles } from './EdgeHandles.tsx'
 import { SelectionOutline } from './SelectionOutline.tsx'
@@ -50,11 +53,35 @@ export function SceneObjectMesh({ object }: SceneObjectMeshProps) {
   ]
 
   const primaryId = primarySelectedId(selectedIds)
-  const edgeEdit = sizeEdit ?? rotateEdit
-  const edgeEditing = Boolean(
-    edgeEdit && selected && primaryId === object.id && type !== 'sphere',
-  )
   const isBox = type === 'cube' || type === 'box'
+  // Size: edges on the single selected box. Rotate: edges on every selected box.
+  const showSizeEdges = Boolean(
+    sizeEdit && selected && primaryId === object.id && isBox,
+  )
+  const showRotateEdges = Boolean(rotateEdit && selected && isBox)
+  const edgeEditing = showSizeEdges || showRotateEdges
+  const activeEdge = showSizeEdges
+    ? sizeEdit!.edge
+    : showRotateEdges && rotateEdit!.edgeObjectId === object.id
+      ? rotateEdit!.edge
+      : null
+
+  const showSourceCorners = Boolean(
+    isBox &&
+      selected &&
+      primaryId === object.id &&
+      (align?.phase === 'pickSourceCorner' || align?.phase === 'pickTarget'),
+  )
+  const showTargetCorners = Boolean(
+    isBox &&
+      align?.phase === 'pickTargetCorner' &&
+      align.targetId === object.id,
+  )
+  const showCorners = showSourceCorners || showTargetCorners
+  const activeAlignCorner =
+    showSourceCorners && align?.phase === 'pickTarget'
+      ? align.sourceCorner
+      : null
 
   const onClick = (event: ThreeEvent<MouseEvent>) => {
     event.stopPropagation()
@@ -63,6 +90,9 @@ export function SceneObjectMesh({ object }: SceneObjectMeshProps) {
       moved.current = false
       return
     }
+
+    if (align?.phase === 'pickSourceCorner') return
+    if (align?.phase === 'pickTargetCorner') return
 
     if (align?.phase === 'pickTarget') {
       dispatch(pickAlignTarget(object.id))
@@ -90,10 +120,7 @@ export function SceneObjectMesh({ object }: SceneObjectMeshProps) {
     event.stopPropagation()
     event.nativeEvent.preventDefault()
 
-    if (align?.phase === 'pickTarget') {
-      dispatch(pickAlignTarget(object.id))
-      return
-    }
+    if (align) return
 
     if (sizeEdit || rotateEdit || dragPlane) {
       dispatch(selectObject({ id: object.id, openMenu: false }))
@@ -192,12 +219,30 @@ export function SceneObjectMesh({ object }: SceneObjectMeshProps) {
         {material}
       </mesh>
       {selected ? <SelectionOutline shape="box" size={size} /> : null}
-      {edgeEditing && edgeEdit && isBox ? (
+      {edgeEditing ? (
         <EdgeHandles
           size={size}
-          selectedEdge={edgeEdit.edge}
+          selectedEdge={activeEdge}
+          previewInactive={Boolean(rotateEdit)}
           onSelect={(edge) =>
-            dispatch(sizeEdit ? setSizeEdge(edge) : setRotateEdge(edge))
+            dispatch(
+              sizeEdit
+                ? setSizeEdge(edge)
+                : setRotateEdge({ edge, objectId: object.id }),
+            )
+          }
+        />
+      ) : null}
+      {showCorners ? (
+        <CornerHandles
+          size={size}
+          selectedCorner={activeAlignCorner}
+          onSelect={(corner) =>
+            dispatch(
+              showSourceCorners
+                ? pickAlignSourceCorner(corner)
+                : pickAlignTargetCorner(corner),
+            )
           }
         />
       ) : null}

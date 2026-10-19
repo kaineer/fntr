@@ -1,7 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { useThree } from '@react-three/fiber'
 import { rotateObjectAroundEdge } from '../store/objectsSlice.ts'
-import { primarySelectedId } from '../store/selection.ts'
 import { useAppDispatch, useAppSelector } from '../store/hooks.ts'
 
 type RotateEdgeDragProps = {
@@ -13,14 +12,11 @@ export function RotateEdgeDrag({ stepPixels = 72 }: RotateEdgeDragProps) {
   const gl = useThree((state) => state.gl)
   const dispatch = useAppDispatch()
   const rotateEdit = useAppSelector((state) => state.objects.rotateEdit)
-  const selectedIds = useAppSelector((state) => state.objects.selectedIds)
   const dragPlane = useAppSelector((state) => state.objects.dragPlane)
 
   const rotateEditRef = useRef(rotateEdit)
-  const selectedIdRef = useRef(primarySelectedId(selectedIds))
   const dragPlaneRef = useRef(dragPlane)
   rotateEditRef.current = rotateEdit
-  selectedIdRef.current = primarySelectedId(selectedIds)
   dragPlaneRef.current = dragPlane
 
   useEffect(() => {
@@ -33,7 +29,7 @@ export function RotateEdgeDrag({ stepPixels = 72 }: RotateEdgeDragProps) {
       if (event.button !== 0 || dragPlaneRef.current) return
       const edit = rotateEditRef.current
       // Mouse rotate is for when the Space form is closed.
-      if (!edit || edit.formOpen || !selectedIdRef.current) return
+      if (!edit || edit.formOpen || !edit.edgeObjectId) return
       dragging = true
       lastX = event.clientX
       accumX = 0
@@ -43,8 +39,7 @@ export function RotateEdgeDrag({ stepPixels = 72 }: RotateEdgeDragProps) {
       if (!dragging || !event.shiftKey) return
 
       const edit = rotateEditRef.current
-      const id = selectedIdRef.current
-      if (!edit || edit.formOpen || !id) return
+      if (!edit || edit.formOpen || !edit.edgeObjectId) return
 
       const dx = event.clientX - lastX
       lastX = event.clientX
@@ -57,7 +52,7 @@ export function RotateEdgeDrag({ stepPixels = 72 }: RotateEdgeDragProps) {
         accumX -= Math.sign(accumX) * stepPixels
         dispatch(
           rotateObjectAroundEdge({
-            id,
+            id: edit.edgeObjectId,
             edge: edit.edge,
             degrees,
           }),

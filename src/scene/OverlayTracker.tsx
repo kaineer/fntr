@@ -10,6 +10,10 @@ type OverlayTrackerProps = {
 
 export function OverlayTracker({ overlayRef }: OverlayTrackerProps) {
   const selected = useAppSelector((state) => {
+    const rotateId = state.objects.rotateEdit?.edgeObjectId
+    if (rotateId) {
+      return state.objects.items.find((item) => item.id === rotateId)
+    }
     const ids = state.objects.selectedIds
     const primary = ids.length > 0 ? ids[ids.length - 1] : null
     return state.objects.items.find((item) => item.id === primary)
