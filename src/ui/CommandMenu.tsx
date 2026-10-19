@@ -261,7 +261,6 @@ export function CommandMenu() {
   } else if (level === 'insert') {
     menuItems = [
       { id: 'cube', label: 'Cube', onSelect: () => insertObject('cube') },
-      { id: 'box', label: 'Box', onSelect: () => insertObject('box') },
       {
         id: 'sphere',
         label: 'Sphere',
