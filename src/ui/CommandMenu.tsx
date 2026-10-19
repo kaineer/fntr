@@ -41,6 +41,7 @@ const OBJECT_COLORS = [
   { id: 'light-gray', label: 'Light gray', value: '#c8c8c4' },
   { id: 'dark-gray', label: 'Dark gray', value: '#5a5a58' },
   { id: 'black', label: 'Black', value: '#1a1a1a' },
+  { id: 'light-brown', label: 'Light brown', value: '#c4a574' },
   { id: 'brown', label: 'Brown', value: '#6b4a2e' },
 ] as const
 

@@ -1,0 +1,140 @@
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.item,
+.member,
+.groupMain {
+  all: unset;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #1c2436;
+  border-radius: 8px;
+  background: #111827;
+  font-size: 13px;
+  color: #9aa3b5;
+  cursor: pointer;
+  text-align: left;
+}
+
+.item:hover,
+.item:focus-visible,
+.member:hover,
+.member:focus-visible,
+.groupMain:hover,
+.groupMain:focus-visible {
+  border-color: #3a4560;
+}
+
+.item.selected,
+.member.selected,
+.groupMain.selected {
+  border-color: #6ea8fe;
+  background: #151d2f;
+}
+
+.item strong,
+.member strong,
+.groupMain strong {
+  color: #e8eaf0;
+  font-weight: 600;
+}
+
+.member {
+  padding: 8px 10px;
+  font-size: 12px;
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.groupHeader {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+}
+
+.groupMain {
+  flex: 1;
+  min-width: 0;
+}
+
+.modeToggle {
+  all: unset;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  border: 1px solid #1c2436;
+  border-radius: 8px;
+  background: #111827;
+  color: #9aa3b5;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.modeToggle:hover,
+.modeToggle:focus-visible {
+  border-color: #6ea8fe;
+  color: #e8eaf0;
+}
+
+.stack {
+  position: relative;
+}
+
+.stack::before,
+.stack::after {
+  content: '';
+  position: absolute;
+  left: 6px;
+  right: -4px;
+  height: 100%;
+  border: 1px solid #1c2436;
+  border-radius: 8px;
+  background: #0f1522;
+  pointer-events: none;
+}
+
+.stack::before {
+  top: 4px;
+  z-index: 0;
+}
+
+.stack::after {
+  top: 8px;
+  left: 10px;
+  right: -6px;
+  z-index: -1;
+  background: #0c121c;
+}
+
+.stack .groupHeader {
+  position: relative;
+  z-index: 1;
+}
+
+.members {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 0 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border-left: 1px solid #1c2436;
+}
