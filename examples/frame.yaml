@@ -1,0 +1,62 @@
+version: 1
+origin:
+  x: 0
+  y: -0
+  z: 0
+objects:
+  - type: cube
+    size:
+      x: 0.015
+      y: 0.55
+      z: 0.35
+    color: "#6b4a2e"
+    offset:
+      x: 0.283
+      y: 0
+      z: 0
+    rotation:
+      x: 0
+      y: 0
+      z: 0
+  - type: cube
+    size:
+      x: 0.015
+      y: 0.55
+      z: 0.35
+    color: "#f5f5f2"
+    offset:
+      x: 0
+      y: -0.268
+      z: 0
+    rotation:
+      x: -0
+      y: 0
+      z: 90
+  - type: cube
+    size:
+      x: 0.015
+      y: 0.55
+      z: 0.35
+    color: "#6b4a2e"
+    offset:
+      x: -0.282
+      y: 0
+      z: 0
+    rotation:
+      x: 0
+      y: 0
+      z: 0
+  - type: cube
+    size:
+      x: 0.015
+      y: 0.55
+      z: 0.35
+    color: "#f5f5f2"
+    offset:
+      x: 0
+      y: 0.267
+      z: 0
+    rotation:
+      x: -0
+      y: 0
+      z: 90
