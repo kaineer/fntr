@@ -1,5 +1,8 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { useThree } from '@react-three/fiber'
+import { Vector3 } from 'three'
+import { useAppSelector } from '../store/hooks.ts'
+import { selectOrbitPivot } from './orbitPivot.ts'
 
 type WheelZoomProps = {
   minDistance?: number
@@ -14,21 +17,36 @@ export function WheelZoom({
 }: WheelZoomProps) {
   const camera = useThree((state) => state.camera)
   const gl = useThree((state) => state.gl)
+  const pivot = useAppSelector(selectOrbitPivot)
+  const pivotRef = useRef(pivot)
+  pivotRef.current = pivot
 
   useEffect(() => {
     const element = gl.domElement
+    const offset = new Vector3()
 
     const onWheel = (event: WheelEvent) => {
       event.preventDefault()
 
+      const { x: px, y: py, z: pz } = pivotRef.current
+      offset.set(
+        camera.position.x - px,
+        camera.position.y - py,
+        camera.position.z - pz,
+      )
+
+      const distance = offset.length()
+      if (distance < 1e-6) return
+
       const factor = Math.exp(event.deltaY * sensitivity)
       const nextDistance = Math.min(
         maxDistance,
-        Math.max(minDistance, camera.position.length() * factor),
+        Math.max(minDistance, distance * factor),
       )
 
-      camera.position.setLength(nextDistance)
-      camera.lookAt(0, 0, 0)
+      offset.multiplyScalar(nextDistance / distance)
+      camera.position.set(px + offset.x, py + offset.y, pz + offset.z)
+      camera.lookAt(px, py, pz)
       camera.updateProjectionMatrix()
     }
 

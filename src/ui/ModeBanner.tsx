@@ -76,8 +76,8 @@ export function ModeBanner() {
   if (rotateEdit) {
     return (
       <div className="mode-banner">
-        Rotate {sizeEdgeLabel(rotateEdit.edge)} — клик по ребру, Space —
-        поворот. Esc — выход
+        Rotate {sizeEdgeLabel(rotateEdit.edge)} — клик по ребру · Shift+ЛКМ —
+        ±90° · Space — форма. Esc — выход
         <button type="button" onClick={() => dispatch(exitRotateEdit())}>
           Готово
         </button>

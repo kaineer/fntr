@@ -1,8 +1,14 @@
 import type { RefObject } from 'react'
 import { Canvas } from '@react-three/fiber'
 import { useAppSelector } from '../store/hooks.ts'
+import {
+  EmptyClickTracker,
+  NonRaycastGrid,
+  useDismissOnEmptyClick,
+} from './EmptyClickDismiss.tsx'
 import { OrbitY } from './OrbitY.tsx'
 import { OverlayTracker } from './OverlayTracker.tsx'
+import { RotateEdgeDrag } from './RotateEdgeDrag.tsx'
 import { SceneObjectMesh } from './SceneObjectMesh.tsx'
 import { WheelZoom } from './WheelZoom.tsx'
 
@@ -12,18 +18,22 @@ type SceneProps = {
 
 export function Scene({ overlayRef }: SceneProps) {
   const objects = useAppSelector((state) => state.objects.items)
+  const onPointerMissed = useDismissOnEmptyClick()
 
   return (
     <Canvas
       camera={{ position: [3.2, 2.4, 4.2], fov: 50 }}
       onCreated={({ camera }) => camera.lookAt(0, 0, 0)}
+      onPointerMissed={onPointerMissed}
     >
-      <color attach="background" args={['#0b1020']} />
-      <ambientLight intensity={0.45} />
-      <directionalLight position={[4, 6, 3]} intensity={1.5} />
-      <gridHelper args={[20, 20, '#2a3550', '#1a2236']} />
+      <color attach="background" args={['#d8dce3']} />
+      <ambientLight intensity={0.7} />
+      <directionalLight position={[4, 6, 3]} intensity={1.35} />
+      <NonRaycastGrid args={[20, 20, '#9aa3b2', '#c8cfd9']} />
+      <EmptyClickTracker />
       <WheelZoom />
       <OrbitY />
+      <RotateEdgeDrag />
       <OverlayTracker overlayRef={overlayRef} />
       {objects.map((object) => (
         <SceneObjectMesh key={object.id} object={object} />

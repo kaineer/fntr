@@ -12,6 +12,7 @@ import {
 import { useAppDispatch, useAppSelector } from '../store/hooks.ts'
 import { planeThroughPoint } from './dragPlane.ts'
 import { EdgeHandles } from './EdgeHandles.tsx'
+import { SelectionOutline } from './SelectionOutline.tsx'
 
 type SceneObjectMeshProps = {
   object: SceneObject
@@ -68,12 +69,25 @@ export function SceneObjectMesh({ object }: SceneObjectMeshProps) {
       return
     }
 
-    if (dragPlane) {
+    // LMB selects only; context menu opens on RMB.
+    dispatch(selectObject({ id: object.id, openMenu: false }))
+  }
+
+  const onContextMenu = (event: ThreeEvent<MouseEvent>) => {
+    event.stopPropagation()
+    event.nativeEvent.preventDefault()
+
+    if (align?.phase === 'pickTarget') {
+      dispatch(pickAlignTarget(object.id))
+      return
+    }
+
+    if (sizeEdit || rotateEdit || dragPlane) {
       dispatch(selectObject({ id: object.id, openMenu: false }))
       return
     }
 
-    dispatch(selectObject({ id: object.id }))
+    dispatch(selectObject({ id: object.id, openMenu: true }))
   }
 
   const onPointerDown = (event: ThreeEvent<PointerEvent>) => {
@@ -131,13 +145,7 @@ export function SceneObjectMesh({ object }: SceneObjectMeshProps) {
         }
       : {}
 
-  const material = (
-    <meshStandardMaterial
-      color={color}
-      emissive={selected ? color : '#000000'}
-      emissiveIntensity={selected ? 0.18 : 0}
-    />
-  )
+  const material = <meshStandardMaterial color={color} />
 
   if (type === 'sphere') {
     return (
@@ -146,20 +154,23 @@ export function SceneObjectMesh({ object }: SceneObjectMeshProps) {
         rotation={rotationRad}
         scale={[size.x, size.y, size.z]}
         onClick={onClick}
+        onContextMenu={onContextMenu}
         {...dragHandlers}
       >
         <sphereGeometry args={[0.5, 32, 32]} />
         {material}
+        {selected ? <SelectionOutline shape="sphere" size={size} /> : null}
       </mesh>
     )
   }
 
   return (
     <group position={positionVec} rotation={rotationRad}>
-      <mesh onClick={onClick} {...dragHandlers}>
+      <mesh onClick={onClick} onContextMenu={onContextMenu} {...dragHandlers}>
         <boxGeometry args={[size.x, size.y, size.z]} />
         {material}
       </mesh>
+      {selected ? <SelectionOutline shape="box" size={size} /> : null}
       {edgeEditing && edgeEdit && isBox ? (
         <EdgeHandles
           size={size}

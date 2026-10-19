@@ -1,5 +1,6 @@
 import { createSlice, type PayloadAction, nanoid } from '@reduxjs/toolkit'
 import { positionToMatchCorners, type CornerId } from './corners.ts'
+import { pastePositionBeside } from './pasteOffset.ts'
 import { rotateAroundEdge } from './rotateAroundEdge.ts'
 import { DEFAULT_SIZE_EDGE, type SizeEdge } from './sizeEdge.ts'
 
@@ -20,7 +21,20 @@ export type SceneObject = {
   color: string
 }
 
-export const DEFAULT_OBJECT_COLOR = '#6ea8fe'
+/** Object payload without id — used by yank / cut / paste. */
+export type ClipboardObject = Omit<SceneObject, 'id'>
+
+export const DEFAULT_OBJECT_COLOR = '#f5f5f2'
+
+function cloneClipboard(item: SceneObject | ClipboardObject): ClipboardObject {
+  return {
+    type: item.type,
+    size: { ...item.size },
+    rotation: { ...item.rotation },
+    position: { ...item.position },
+    color: item.color,
+  }
+}
 
 export type DragPlane = 'xy' | 'xz' | 'yz'
 
@@ -51,6 +65,7 @@ export type EdgeEditState = {
 export type ObjectsState = {
   items: SceneObject[]
   selectedId: string | null
+  clipboard: ClipboardObject | null
   commandMenu: {
     open: boolean
     mode: MenuMode
@@ -87,6 +102,7 @@ const closedMenu = {
 const initialState: ObjectsState = {
   items: [],
   selectedId: null,
+  clipboard: null,
   commandMenu: closedMenu,
   sizeEdit: null,
   rotateEdit: null,
@@ -120,7 +136,7 @@ const objectsSlice = createSlice({
       state,
       action: PayloadAction<{ id: string | null; openMenu?: boolean }>,
     ) {
-      const { id, openMenu = true } = action.payload
+      const { id, openMenu = false } = action.payload
       state.selectedId = id
       state.sizeEdit = null
       state.rotateEdit = null
@@ -271,6 +287,51 @@ const objectsSlice = createSlice({
         state.commandMenu = closedMenu
       }
     },
+    /** Y — copy selected object into clipboard without removing it. */
+    yankSelected(state) {
+      if (!state.selectedId) return
+      const item = state.items.find((entry) => entry.id === state.selectedId)
+      if (!item) return
+      state.clipboard = cloneClipboard(item)
+      state.commandMenu = closedMenu
+    },
+    /** X / Delete — yank selected object, then remove it. */
+    cutSelected(state) {
+      if (!state.selectedId) return
+      const id = state.selectedId
+      const item = state.items.find((entry) => entry.id === id)
+      if (!item) return
+      state.clipboard = cloneClipboard(item)
+      state.items = state.items.filter((entry) => entry.id !== id)
+      state.selectedId = null
+      state.sizeEdit = null
+      state.rotateEdit = null
+      state.commandMenu = closedMenu
+      state.dragPlane = null
+      state.align = null
+    },
+    /** P — paste clipboard (size/rotation/color preserved), offset so AABBs don't overlap. */
+    pasteClipboard(state) {
+      if (!state.clipboard) return
+      const source = state.clipboard
+      const copy: SceneObject = {
+        id: nanoid(),
+        type: source.type,
+        size: { ...source.size },
+        rotation: { ...source.rotation },
+        position: pastePositionBeside(source),
+        color: source.color,
+      }
+      state.items.push(copy)
+      state.selectedId = copy.id
+      // Next paste offsets from this copy, keeping the same size/rotation/color.
+      state.clipboard = cloneClipboard(copy)
+      state.sizeEdit = null
+      state.rotateEdit = null
+      state.dragPlane = null
+      state.align = null
+      state.commandMenu = closedMenu
+    },
     updateObjectSize(
       state,
       action: PayloadAction<{ id: string; size: Partial<Vec3> }>,
@@ -372,6 +433,9 @@ export const {
   clearAlign,
   clearInteractionModes,
   removeObject,
+  yankSelected,
+  cutSelected,
+  pasteClipboard,
   updateObjectSize,
   updateObjectPosition,
   updateObjectRotation,

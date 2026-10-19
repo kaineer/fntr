@@ -25,8 +25,8 @@ function App() {
       <aside className="panel">
         <h1>fntr</h1>
         <p>
-          <kbd>Space</kbd> — Insert. Клик по объекту — Size / Move / Align /
-          Rotate.
+          <kbd>Space</kbd> — Insert. ЛКМ — выбор, ПКМ — меню.{' '}
+          <kbd>X</kbd> — cut, <kbd>Y</kbd> — yank, <kbd>P</kbd> — paste.
         </p>
 
         <section className="object-list">

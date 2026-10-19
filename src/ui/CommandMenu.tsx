@@ -5,8 +5,10 @@ import {
   alignObjectCorners,
   clearAlign,
   closeCommandMenu,
+  cutSelected,
   openRotateForm,
   openSizeForm,
+  pasteClipboard,
   setMenuLevel,
   startAlign,
   startDrag,
@@ -14,6 +16,7 @@ import {
   startSizeEdit,
   toggleSpaceMenu,
   updateObjectColor,
+  yankSelected,
 } from '../store/objectsSlice.ts'
 import { CORNERS } from '../store/corners.ts'
 import { useAppDispatch, useAppSelector } from '../store/hooks.ts'
@@ -26,13 +29,11 @@ type MenuItem = {
 }
 
 const OBJECT_COLORS = [
-  { id: 'blue', label: 'Blue', value: '#6ea8fe' },
-  { id: 'orange', label: 'Orange', value: '#f4a261' },
-  { id: 'teal', label: 'Teal', value: '#2a9d8f' },
-  { id: 'coral', label: 'Coral', value: '#e76f51' },
-  { id: 'yellow', label: 'Yellow', value: '#e9c46a' },
-  { id: 'violet', label: 'Violet', value: '#9b5de5' },
-  { id: 'white', label: 'White', value: '#e8eaf0' },
+  { id: 'white', label: 'White', value: '#f5f5f2' },
+  { id: 'light-gray', label: 'Light gray', value: '#c8c8c4' },
+  { id: 'dark-gray', label: 'Dark gray', value: '#5a5a58' },
+  { id: 'black', label: 'Black', value: '#1a1a1a' },
+  { id: 'brown', label: 'Brown', value: '#6b4a2e' },
 ] as const
 
 const MOVE_PLANES: { id: DragPlane; label: string }[] = [
@@ -63,6 +64,9 @@ export function CommandMenu() {
     }
     dispatch(closeCommandMenu())
   }
+
+  const dragPlane = useAppSelector((state) => state.objects.dragPlane)
+  const clipboard = useAppSelector((state) => state.objects.clipboard)
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -101,12 +105,49 @@ export function CommandMenu() {
           dispatch(clearAlign())
         }
         dispatch(closeCommandMenu())
+        return
+      }
+
+      const busy =
+        Boolean(sizeEdit) ||
+        Boolean(rotateEdit) ||
+        Boolean(dragPlane) ||
+        Boolean(align)
+      if (busy || event.metaKey || event.ctrlKey || event.altKey) return
+
+      if (event.code === 'KeyX') {
+        if (!selectedId) return
+        event.preventDefault()
+        dispatch(cutSelected())
+        return
+      }
+
+      if (event.code === 'KeyY') {
+        if (!selectedId) return
+        event.preventDefault()
+        dispatch(yankSelected())
+        return
+      }
+
+      if (event.code === 'KeyP') {
+        if (!clipboard) return
+        event.preventDefault()
+        dispatch(pasteClipboard())
       }
     }
 
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [dispatch, open, align, sizeEdit, rotateEdit])
+  }, [
+    dispatch,
+    open,
+    align,
+    sizeEdit,
+    rotateEdit,
+    dragPlane,
+    selectedId,
+    clipboard,
+  ])
 
   const insertObject = (type: ObjectType) => {
     dispatch(addObject(type))
@@ -156,6 +197,14 @@ export function CommandMenu() {
       id: 'align',
       label: 'Align',
       onSelect: () => dispatch(setMenuLevel('align')),
+    },
+    {
+      id: 'delete',
+      label: 'Delete',
+      onSelect: () => {
+        dispatch(cutSelected())
+        closeMenu()
+      },
     },
   ]
 
