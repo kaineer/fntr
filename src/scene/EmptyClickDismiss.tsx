@@ -83,7 +83,7 @@ export function useDismissOnEmptyClick() {
   const dispatch = useAppDispatch()
   const hasMode = useAppSelector(
     (state) =>
-      Boolean(state.objects.dragPlane) ||
+      Boolean(state.objects.moveEdit) ||
       Boolean(state.objects.align) ||
       Boolean(state.objects.sizeEdit) ||
       Boolean(state.objects.rotateEdit),

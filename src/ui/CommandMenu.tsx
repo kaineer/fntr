@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import type { DragPlane, MenuLevel, ObjectType } from '../store/objectsSlice.ts'
+import type { MenuLevel, ObjectType } from '../store/objectsSlice.ts'
 import {
   addObject,
   closeCommandMenu,
@@ -12,7 +12,7 @@ import {
   pasteClipboard,
   setMenuLevel,
   startAlign,
-  startDrag,
+  startMoveEdit,
   startRotateEdit,
   startSizeEdit,
   toggleSpaceMenu,
@@ -45,17 +45,10 @@ const OBJECT_COLORS = [
   { id: 'brown', label: 'Brown', value: '#6b4a2e' },
 ] as const
 
-const MOVE_PLANES: { id: DragPlane; label: string }[] = [
-  { id: 'xy', label: 'XY' },
-  { id: 'xz', label: 'XZ' },
-  { id: 'yz', label: 'YZ' },
-]
-
 const MENU_LEVEL_LABELS: Partial<Record<MenuLevel, string>> = {
   insert: 'Insert',
   file: 'File',
   color: 'Color',
-  move: 'Move',
 }
 
 export function CommandMenu() {
@@ -79,7 +72,7 @@ export function CommandMenu() {
     dispatch(closeCommandMenu())
   }
 
-  const dragPlane = useAppSelector((state) => state.objects.dragPlane)
+  const moveEdit = useAppSelector((state) => state.objects.moveEdit)
   const clipboard = useAppSelector((state) => state.objects.clipboard)
 
   useEffect(() => {
@@ -122,7 +115,7 @@ export function CommandMenu() {
       const busy =
         Boolean(sizeEdit) ||
         Boolean(rotateEdit) ||
-        Boolean(dragPlane) ||
+        Boolean(moveEdit) ||
         Boolean(align)
       if (busy || event.metaKey || event.ctrlKey || event.altKey) return
 
@@ -168,7 +161,7 @@ export function CommandMenu() {
     align,
     sizeEdit,
     rotateEdit,
-    dragPlane,
+    moveEdit,
     selectedIds,
     clipboard,
     groupSelectedActive,
@@ -230,7 +223,7 @@ export function CommandMenu() {
     {
       id: 'move',
       label: 'Move',
-      onSelect: () => dispatch(setMenuLevel('move')),
+      onSelect: () => dispatch(startMoveEdit()),
     },
     ...(!multi && isCube
       ? [
@@ -322,12 +315,6 @@ export function CommandMenu() {
       label: entry.label,
       color: entry.value,
       onSelect: () => setColor(entry.value),
-    }))
-  } else if (level === 'move') {
-    menuItems = MOVE_PLANES.map((plane) => ({
-      id: plane.id,
-      label: plane.label,
-      onSelect: () => dispatch(startDrag(plane.id)),
     }))
   }
 

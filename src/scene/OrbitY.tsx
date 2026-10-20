@@ -10,17 +10,17 @@ type OrbitYProps = {
 export function OrbitY({ sensitivity = 0.005 }: OrbitYProps) {
   const camera = useThree((state) => state.camera)
   const gl = useThree((state) => state.gl)
-  const dragPlane = useAppSelector((state) => state.objects.dragPlane)
+  const moveEdit = useAppSelector((state) => state.objects.moveEdit)
   const rotateEdit = useAppSelector((state) => state.objects.rotateEdit)
   const selectedKey = useAppSelector((state) =>
     state.objects.selectedIds.join(','),
   )
   const pivot = useAppSelector(selectOrbitPivot)
 
-  const dragPlaneRef = useRef(dragPlane)
+  const moveEditRef = useRef(moveEdit)
   const rotateEditRef = useRef(rotateEdit)
   const pivotRef = useRef(pivot)
-  dragPlaneRef.current = dragPlane
+  moveEditRef.current = moveEdit
   rotateEditRef.current = rotateEdit
   pivotRef.current = pivot
 
@@ -39,7 +39,7 @@ export function OrbitY({ sensitivity = 0.005 }: OrbitYProps) {
     }
 
     const onPointerDown = (event: PointerEvent) => {
-      if (event.button !== 0 || dragPlaneRef.current) return
+      if (event.button !== 0 || moveEditRef.current) return
       dragging = true
       lastX = event.clientX
       element.setPointerCapture(event.pointerId)

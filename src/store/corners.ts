@@ -44,7 +44,7 @@ export function cornerLocalPosition(
   return [offset.x, offset.y, offset.z]
 }
 
-function worldCorner(
+export function worldCorner(
   position: Vec3,
   rotation: Vec3,
   size: Vec3,
@@ -56,6 +56,32 @@ function worldCorner(
   return localCornerOffset(size, corner)
     .applyQuaternion(orientation)
     .add(new Vector3(position.x, position.y, position.z))
+}
+
+/** Corner of the object closest to the camera (world space). */
+export function nearestCornerToCamera(
+  position: Vec3,
+  rotation: Vec3,
+  size: Vec3,
+  cameraPosition: Vec3,
+): CornerId {
+  let best: CornerId = CORNERS[0].id
+  let bestDist = Infinity
+  const cam = new Vector3(
+    cameraPosition.x,
+    cameraPosition.y,
+    cameraPosition.z,
+  )
+
+  for (const { id } of CORNERS) {
+    const dist = worldCorner(position, rotation, size, id).distanceToSquared(cam)
+    if (dist < bestDist) {
+      bestDist = dist
+      best = id
+    }
+  }
+
+  return best
 }
 
 /** Move source so its corner coincides with the target's corner in world space. */

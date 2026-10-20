@@ -1,6 +1,6 @@
-import { useRef } from 'react'
-import { type ThreeEvent } from '@react-three/fiber'
-import { Plane, Vector3 } from 'three'
+import { useEffect, useRef } from 'react'
+import { type ThreeEvent, useThree } from '@react-three/fiber'
+import { Raycaster, Vector2 } from 'three'
 import {
   addToSelection,
   openObjectMenu,
@@ -8,15 +8,19 @@ import {
   pickAlignTarget,
   pickAlignTargetCorner,
   selectObject,
+  setMoveAxis,
   setRotateEdge,
   setSizeEdge,
   translateSelected,
   type SceneObject,
+  type Vec3,
 } from '../store/objectsSlice.ts'
+import type { MoveAxis } from '../store/moveAxis.ts'
 import { primarySelectedId } from '../store/selection.ts'
 import { useAppDispatch, useAppSelector } from '../store/hooks.ts'
+import { AxisHandles } from './AxisHandles.tsx'
 import { CornerHandles } from './CornerHandles.tsx'
-import { planeThroughPoint } from './dragPlane.ts'
+import { rayClosestAxisT } from './dragPlane.ts'
 import { EdgeHandles } from './EdgeHandles.tsx'
 import { SelectionOutline } from './SelectionOutline.tsx'
 
@@ -26,21 +30,30 @@ type SceneObjectMeshProps = {
 
 export function SceneObjectMesh({ object }: SceneObjectMeshProps) {
   const dispatch = useAppDispatch()
+  const { camera, gl } = useThree()
   const selected = useAppSelector((state) =>
     state.objects.selectedIds.includes(object.id),
   )
   const selectedIds = useAppSelector((state) => state.objects.selectedIds)
-  const dragPlane = useAppSelector((state) => state.objects.dragPlane)
+  const moveEdit = useAppSelector((state) => state.objects.moveEdit)
   const align = useAppSelector((state) => state.objects.align)
   const sizeEdit = useAppSelector((state) => state.objects.sizeEdit)
   const rotateEdit = useAppSelector((state) => state.objects.rotateEdit)
   const dragging = useRef(false)
   const moved = useRef(false)
-  const activePlane = useRef(new Plane())
-  const grabOffset = useRef(new Vector3())
-  const hitPoint = useRef(new Vector3())
+  const dragAxis = useRef<MoveAxis>('x')
+  const grabT = useRef(0)
+  const axisOrigin = useRef<Vec3>({ x: 0, y: 0, z: 0 })
+  const positionRef = useRef(object.position)
+  const ndc = useRef(new Vector2())
+  const raycaster = useRef(new Raycaster())
+  const dragListeners = useRef<{
+    move: (event: PointerEvent) => void
+    up: (event: PointerEvent) => void
+  } | null>(null)
 
   const { size, rotation, type, color, position } = object
+  positionRef.current = position
   const rotationRad: [number, number, number] = [
     rotation.x,
     rotation.y,
@@ -65,6 +78,11 @@ export function SceneObjectMesh({ object }: SceneObjectMeshProps) {
     : showRotateEdges && rotateEdit!.edgeObjectId === object.id
       ? rotateEdit!.edge
       : null
+
+  // World-aligned move axes on the primary selected object (any type).
+  const showMoveAxes = Boolean(
+    moveEdit && selected && primaryId === object.id,
+  )
 
   const showSourceCorners = Boolean(
     isCube &&
@@ -99,7 +117,7 @@ export function SceneObjectMesh({ object }: SceneObjectMeshProps) {
       return
     }
 
-    if (sizeEdit || rotateEdit) {
+    if (sizeEdit || rotateEdit || moveEdit) {
       if (!selected) {
         dispatch(selectObject({ id: object.id, openMenu: false }))
       }
@@ -122,7 +140,7 @@ export function SceneObjectMesh({ object }: SceneObjectMeshProps) {
 
     if (align) return
 
-    if (sizeEdit || rotateEdit || dragPlane) {
+    if (sizeEdit || rotateEdit || moveEdit) {
       dispatch(selectObject({ id: object.id, openMenu: false }))
       return
     }
@@ -135,117 +153,179 @@ export function SceneObjectMesh({ object }: SceneObjectMeshProps) {
     dispatch(selectObject({ id: object.id, openMenu: true }))
   }
 
-  const onPointerDown = (event: ThreeEvent<PointerEvent>) => {
-    if (!dragPlane || !selected) return
-    event.stopPropagation()
-    ;(event.nativeEvent.target as Element | null)?.setPointerCapture?.(
-      event.pointerId,
+  useEffect(() => {
+    return () => {
+      const listeners = dragListeners.current
+      if (!listeners) return
+      const element = gl.domElement
+      element.removeEventListener('pointermove', listeners.move)
+      element.removeEventListener('pointerup', listeners.up)
+      element.removeEventListener('pointercancel', listeners.up)
+      dragListeners.current = null
+    }
+  }, [gl])
+
+  const applyAxisDrag = (clientX: number, clientY: number) => {
+    const element = gl.domElement
+    const rect = element.getBoundingClientRect()
+    ndc.current.x = ((clientX - rect.left) / rect.width) * 2 - 1
+    ndc.current.y = -((clientY - rect.top) / rect.height) * 2 + 1
+    raycaster.current.setFromCamera(ndc.current, camera)
+
+    const axis = dragAxis.current
+    const t = rayClosestAxisT(
+      raycaster.current.ray.origin,
+      raycaster.current.ray.direction,
+      axisOrigin.current,
+      axis,
     )
-    dragging.current = true
-    moved.current = false
-
-    activePlane.current.copy(planeThroughPoint(dragPlane, position))
-    if (!event.ray.intersectPlane(activePlane.current, hitPoint.current)) return
-    grabOffset.current.set(
-      position.x - hitPoint.current.x,
-      position.y - hitPoint.current.y,
-      position.z - hitPoint.current.z,
-    )
-  }
-
-  const onPointerMove = (event: ThreeEvent<PointerEvent>) => {
-    if (!dragging.current || !selected) return
-    event.stopPropagation()
-    moved.current = true
-
-    if (!event.ray.intersectPlane(activePlane.current, hitPoint.current)) return
-
-    const nextX = hitPoint.current.x + grabOffset.current.x
-    const nextY = hitPoint.current.y + grabOffset.current.y
-    const nextZ = hitPoint.current.z + grabOffset.current.z
+    const desired = axisOrigin.current[axis] + (t - grabT.current)
+    const deltaAlong = desired - positionRef.current[axis]
+    if (deltaAlong === 0) return
 
     dispatch(
       translateSelected({
         delta: {
-          x: nextX - position.x,
-          y: nextY - position.y,
-          z: nextZ - position.z,
+          x: axis === 'x' ? deltaAlong : 0,
+          y: axis === 'y' ? deltaAlong : 0,
+          z: axis === 'z' ? deltaAlong : 0,
         },
       }),
     )
   }
 
-  const endDrag = (event: ThreeEvent<PointerEvent>) => {
-    if (!dragging.current) return
-    dragging.current = false
-    ;(event.nativeEvent.target as Element | null)?.releasePointerCapture?.(
-      event.pointerId,
+  const onPointerDown = (event: ThreeEvent<PointerEvent>) => {
+    if (!moveEdit || !selected || event.nativeEvent.button !== 0) return
+    event.stopPropagation()
+
+    const axis = moveEdit.axis
+    dragAxis.current = axis
+    axisOrigin.current = {
+      x: position.x,
+      y: position.y,
+      z: position.z,
+    }
+    grabT.current = rayClosestAxisT(
+      event.ray.origin,
+      event.ray.direction,
+      axisOrigin.current,
+      axis,
     )
+
+    dragging.current = true
+    moved.current = false
+
+    const element = gl.domElement
+    const previous = dragListeners.current
+    if (previous) {
+      element.removeEventListener('pointermove', previous.move)
+      element.removeEventListener('pointerup', previous.up)
+      element.removeEventListener('pointercancel', previous.up)
+      dragListeners.current = null
+    }
+
+    element.setPointerCapture(event.nativeEvent.pointerId)
+
+    const onMove = (native: PointerEvent) => {
+      if (!dragging.current) return
+      moved.current = true
+      applyAxisDrag(native.clientX, native.clientY)
+    }
+
+    const onUp = (native: PointerEvent) => {
+      if (!dragging.current) return
+      dragging.current = false
+      if (element.hasPointerCapture(native.pointerId)) {
+        element.releasePointerCapture(native.pointerId)
+      }
+      element.removeEventListener('pointermove', onMove)
+      element.removeEventListener('pointerup', onUp)
+      element.removeEventListener('pointercancel', onUp)
+      dragListeners.current = null
+    }
+
+    dragListeners.current = { move: onMove, up: onUp }
+    element.addEventListener('pointermove', onMove)
+    element.addEventListener('pointerup', onUp)
+    element.addEventListener('pointercancel', onUp)
   }
 
   const dragHandlers =
-    dragPlane && selected
+    moveEdit && selected
       ? {
           onPointerDown,
-          onPointerMove,
-          onPointerUp: endDrag,
-          onPointerCancel: endDrag,
         }
       : {}
 
   const material = <meshStandardMaterial color={color} />
 
+  const moveAxisOverlay = showMoveAxes ? (
+    <AxisHandles
+      position={position}
+      rotation={rotation}
+      size={size}
+      selectedAxis={moveEdit!.axis}
+      onSelect={(axis) => dispatch(setMoveAxis(axis))}
+    />
+  ) : null
+
   if (type === 'sphere') {
     return (
-      <mesh
-        position={positionVec}
-        rotation={rotationRad}
-        scale={[size.x, size.y, size.z]}
-        onClick={onClick}
-        onContextMenu={onContextMenu}
-        {...dragHandlers}
-      >
-        <sphereGeometry args={[0.5, 32, 32]} />
-        {material}
-        {selected ? <SelectionOutline shape="sphere" size={size} /> : null}
-      </mesh>
+      <>
+        <mesh
+          position={positionVec}
+          rotation={rotationRad}
+          scale={[size.x, size.y, size.z]}
+          onClick={onClick}
+          onContextMenu={onContextMenu}
+          {...dragHandlers}
+        >
+          <sphereGeometry args={[0.5, 32, 32]} />
+          {material}
+          {selected ? <SelectionOutline shape="sphere" size={size} /> : null}
+        </mesh>
+        {moveAxisOverlay}
+      </>
     )
   }
 
   return (
-    <group position={positionVec} rotation={rotationRad}>
-      <mesh onClick={onClick} onContextMenu={onContextMenu} {...dragHandlers}>
-        <boxGeometry args={[size.x, size.y, size.z]} />
-        {material}
-      </mesh>
-      {selected ? <SelectionOutline shape="box" size={size} /> : null}
-      {edgeEditing ? (
-        <EdgeHandles
-          size={size}
-          selectedEdge={activeEdge}
-          previewInactive={Boolean(rotateEdit)}
-          onSelect={(edge) =>
-            dispatch(
-              sizeEdit
-                ? setSizeEdge(edge)
-                : setRotateEdge({ edge, objectId: object.id }),
-            )
-          }
-        />
-      ) : null}
-      {showCorners ? (
-        <CornerHandles
-          size={size}
-          selectedCorner={activeAlignCorner}
-          onSelect={(corner) =>
-            dispatch(
-              showSourceCorners
-                ? pickAlignSourceCorner(corner)
-                : pickAlignTargetCorner(corner),
-            )
-          }
-        />
-      ) : null}
-    </group>
+    <>
+      <group position={positionVec} rotation={rotationRad}>
+        <mesh onClick={onClick} onContextMenu={onContextMenu} {...dragHandlers}>
+          <boxGeometry args={[size.x, size.y, size.z]} />
+          {material}
+        </mesh>
+        {selected ? <SelectionOutline shape="box" size={size} /> : null}
+        {edgeEditing ? (
+          <EdgeHandles
+            size={size}
+            selectedEdge={activeEdge}
+            previewInactive={Boolean(rotateEdit)}
+            onSelect={(edge) =>
+              dispatch(
+                sizeEdit
+                  ? setSizeEdge(edge)
+                  : setRotateEdge({ edge, objectId: object.id }),
+              )
+            }
+          />
+        ) : null}
+        {showCorners ? (
+          <CornerHandles
+            size={size}
+            selectedCorner={activeAlignCorner}
+            onSelect={(corner) =>
+              dispatch(
+                showSourceCorners
+                  ? pickAlignSourceCorner(corner)
+                  : pickAlignTargetCorner(corner),
+              )
+            }
+          />
+        ) : null}
+      </group>
+      {moveAxisOverlay}
+    </>
   )
 }

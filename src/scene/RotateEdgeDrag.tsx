@@ -12,12 +12,12 @@ export function RotateEdgeDrag({ stepPixels = 72 }: RotateEdgeDragProps) {
   const gl = useThree((state) => state.gl)
   const dispatch = useAppDispatch()
   const rotateEdit = useAppSelector((state) => state.objects.rotateEdit)
-  const dragPlane = useAppSelector((state) => state.objects.dragPlane)
+  const moveEdit = useAppSelector((state) => state.objects.moveEdit)
 
   const rotateEditRef = useRef(rotateEdit)
-  const dragPlaneRef = useRef(dragPlane)
+  const moveEditRef = useRef(moveEdit)
   rotateEditRef.current = rotateEdit
-  dragPlaneRef.current = dragPlane
+  moveEditRef.current = moveEdit
 
   useEffect(() => {
     const element = gl.domElement
@@ -26,7 +26,7 @@ export function RotateEdgeDrag({ stepPixels = 72 }: RotateEdgeDragProps) {
     let accumX = 0
 
     const onPointerDown = (event: PointerEvent) => {
-      if (event.button !== 0 || dragPlaneRef.current) return
+      if (event.button !== 0 || moveEditRef.current) return
       const edit = rotateEditRef.current
       // Mouse rotate is for when the Space form is closed.
       if (!edit || edit.formOpen || !edit.edgeObjectId) return

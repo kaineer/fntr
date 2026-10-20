@@ -1,17 +1,18 @@
 import {
   clearAlign,
-  clearDrag,
   clearInteractionModes,
+  exitMoveEdit,
   exitRotateEdit,
   exitSizeEdit,
 } from '../store/objectsSlice.ts'
+import { moveAxisLabel } from '../store/moveAxis.ts'
 import { sizeEdgeLabel } from '../store/sizeEdge.ts'
 import { useAppDispatch, useAppSelector } from '../store/hooks.ts'
 import { useEffect } from 'react'
 
 export function ModeBanner() {
   const dispatch = useAppDispatch()
-  const dragPlane = useAppSelector((state) => state.objects.dragPlane)
+  const moveEdit = useAppSelector((state) => state.objects.moveEdit)
   const align = useAppSelector((state) => state.objects.align)
   const sizeEdit = useAppSelector((state) => state.objects.sizeEdit)
   const rotateEdit = useAppSelector((state) => state.objects.rotateEdit)
@@ -19,7 +20,7 @@ export function ModeBanner() {
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.code !== 'Escape') return
-      if (!dragPlane && !align && !sizeEdit && !rotateEdit) return
+      if (!moveEdit && !align && !sizeEdit && !rotateEdit) return
       event.preventDefault()
       event.stopImmediatePropagation()
       dispatch(clearInteractionModes())
@@ -27,22 +28,23 @@ export function ModeBanner() {
 
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [dispatch, dragPlane, align, sizeEdit, rotateEdit])
+  }, [dispatch, moveEdit, align, sizeEdit, rotateEdit])
 
   useEffect(() => {
-    if (!dragPlane) return
+    if (!moveEdit) return
     const previous = document.body.style.cursor
     document.body.style.cursor = 'grab'
     return () => {
       document.body.style.cursor = previous
     }
-  }, [dragPlane])
+  }, [moveEdit])
 
-  if (dragPlane) {
+  if (moveEdit) {
     return (
       <div className="mode-banner">
-        Move {dragPlane.toUpperCase()} — тяните объект. Esc — выход
-        <button type="button" onClick={() => dispatch(clearDrag())}>
+        Move {moveAxisLabel(moveEdit.axis)} — клик по оси, тяните объект. Esc —
+        выход
+        <button type="button" onClick={() => dispatch(exitMoveEdit())}>
           Готово
         </button>
       </div>

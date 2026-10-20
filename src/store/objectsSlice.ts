@@ -10,6 +10,7 @@ import {
   isGroupSelection,
   primarySelectedId,
 } from './selection.ts'
+import { DEFAULT_MOVE_AXIS, type MoveAxis } from './moveAxis.ts'
 import { DEFAULT_SIZE_EDGE, type SizeEdge } from './sizeEdge.ts'
 
 export type ObjectType = 'cube' | 'sphere'
@@ -55,7 +56,7 @@ function cloneClipboardObject(
 function clearSelectionModes(state: ObjectsState) {
   state.sizeEdit = null
   state.rotateEdit = null
-  state.dragPlane = null
+  state.moveEdit = null
   state.align = null
   state.commandMenu = closedMenu
 }
@@ -73,8 +74,6 @@ function dissolveSingletonGroups(state: ObjectsState) {
   }
 }
 
-export type DragPlane = 'xy' | 'xz' | 'yz'
-
 export type AlignState =
   | null
   | { phase: 'pickSourceCorner' }
@@ -85,7 +84,7 @@ export type AlignState =
       targetId: string
     }
 
-export type MenuLevel = 'root' | 'insert' | 'file' | 'color' | 'move'
+export type MenuLevel = 'root' | 'insert' | 'file' | 'color'
 
 export type MenuMode = 'space' | 'object'
 
@@ -101,6 +100,10 @@ export type RotateEditState = {
   formOpen: boolean
 }
 
+export type MoveEditState = {
+  axis: MoveAxis
+}
+
 export type ObjectsState = {
   items: SceneObject[]
   selectedIds: string[]
@@ -112,7 +115,7 @@ export type ObjectsState = {
   }
   sizeEdit: SizeEditState | null
   rotateEdit: RotateEditState | null
-  dragPlane: DragPlane | null
+  moveEdit: MoveEditState | null
   align: AlignState
 }
 
@@ -141,7 +144,7 @@ const initialState: ObjectsState = {
   commandMenu: closedMenu,
   sizeEdit: null,
   rotateEdit: null,
-  dragPlane: null,
+  moveEdit: null,
   align: null,
 }
 
@@ -200,7 +203,7 @@ const objectsSlice = createSlice({
 
       if (
         !openMenu ||
-        state.dragPlane ||
+        state.moveEdit ||
         state.align?.phase === 'pickTarget'
       ) {
         state.commandMenu = closedMenu
@@ -228,7 +231,7 @@ const objectsSlice = createSlice({
     /** Open object menu for the current selection without changing it. */
     openObjectMenu(state) {
       if (state.selectedIds.length === 0) return
-      if (state.dragPlane || state.align) return
+      if (state.moveEdit || state.align) return
       state.commandMenu = {
         open: true,
         mode: 'object',
@@ -256,7 +259,7 @@ const objectsSlice = createSlice({
       if (state.selectedIds.length !== 1) return
       state.sizeEdit = { edge: { ...DEFAULT_SIZE_EDGE }, formOpen: false }
       state.rotateEdit = null
-      state.dragPlane = null
+      state.moveEdit = null
       state.align = null
       state.commandMenu = closedMenu
     },
@@ -290,7 +293,7 @@ const objectsSlice = createSlice({
         formOpen: false,
       }
       state.sizeEdit = null
-      state.dragPlane = null
+      state.moveEdit = null
       state.align = null
       state.commandMenu = closedMenu
     },
@@ -315,16 +318,20 @@ const objectsSlice = createSlice({
     exitRotateEdit(state) {
       state.rotateEdit = null
     },
-    startDrag(state, action: PayloadAction<DragPlane>) {
+    startMoveEdit(state) {
       if (state.selectedIds.length === 0) return
-      state.dragPlane = action.payload
+      state.moveEdit = { axis: DEFAULT_MOVE_AXIS }
       state.align = null
       state.sizeEdit = null
       state.rotateEdit = null
       state.commandMenu = closedMenu
     },
-    clearDrag(state) {
-      state.dragPlane = null
+    setMoveAxis(state, action: PayloadAction<MoveAxis>) {
+      if (!state.moveEdit) return
+      state.moveEdit.axis = action.payload
+    },
+    exitMoveEdit(state) {
+      state.moveEdit = null
     },
     startAlign(state) {
       if (state.selectedIds.length !== 1) return
@@ -332,7 +339,7 @@ const objectsSlice = createSlice({
       const item = state.items.find((entry) => entry.id === primary)
       if (!item || item.type !== 'cube') return
       state.align = { phase: 'pickSourceCorner' }
-      state.dragPlane = null
+      state.moveEdit = null
       state.sizeEdit = null
       state.rotateEdit = null
       state.commandMenu = closedMenu
@@ -384,7 +391,7 @@ const objectsSlice = createSlice({
       state.align = null
     },
     clearInteractionModes(state) {
-      state.dragPlane = null
+      state.moveEdit = null
       state.align = null
       state.sizeEdit = null
       state.rotateEdit = null
@@ -631,8 +638,9 @@ export const {
   openRotateForm,
   closeRotateForm,
   exitRotateEdit,
-  startDrag,
-  clearDrag,
+  startMoveEdit,
+  setMoveAxis,
+  exitMoveEdit,
   startAlign,
   pickAlignSourceCorner,
   pickAlignTarget,
@@ -655,5 +663,5 @@ export const {
   alignObjectCorners,
 } = objectsSlice.actions
 
-export type { CornerId, SizeEdge }
+export type { CornerId, MoveAxis, SizeEdge }
 export default objectsSlice.reducer
