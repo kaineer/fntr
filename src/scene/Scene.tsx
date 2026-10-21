@@ -9,6 +9,7 @@ import {
 import { initialOrbitCameraPosition } from './orbitPivot.ts'
 import { OrbitY } from './OrbitY.tsx'
 import { OverlayTracker } from './OverlayTracker.tsx'
+import { PanKeys } from './PanKeys.tsx'
 import { RotateEdgeDrag } from './RotateEdgeDrag.tsx'
 import { SceneObjectMesh } from './SceneObjectMesh.tsx'
 import { WheelZoom } from './WheelZoom.tsx'
@@ -38,6 +39,7 @@ export function Scene({ overlayRef }: SceneProps) {
       <EmptyClickTracker />
       <WheelZoom />
       <OrbitY />
+      <PanKeys />
       <RotateEdgeDrag />
       <OverlayTracker overlayRef={overlayRef} />
       {objects.map((object) => (

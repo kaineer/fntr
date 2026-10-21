@@ -5,7 +5,7 @@ export const MOVE_AXES: MoveAxis[] = ['x', 'y', 'z']
 export const DEFAULT_MOVE_AXIS: MoveAxis = 'x'
 
 /** Fixed handle length — does not grow with the object. */
-export const MOVE_AXIS_LENGTH = 1
+export const MOVE_AXIS_LENGTH = 0.5
 
 export function moveAxisLabel(axis: MoveAxis): string {
   return axis.toUpperCase()

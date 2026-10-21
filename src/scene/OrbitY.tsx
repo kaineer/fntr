@@ -1,7 +1,12 @@
 import { useEffect, useRef } from 'react'
 import { useThree } from '@react-three/fiber'
 import { useAppSelector } from '../store/hooks.ts'
-import { aimCameraAtPivot, selectOrbitPivot } from './orbitPivot.ts'
+import {
+  aimCameraAtPivot,
+  getOrbitPivot,
+  selectionCentroid,
+  setOrbitPivot,
+} from './orbitPivot.ts'
 
 type OrbitYProps = {
   sensitivity?: number
@@ -12,21 +17,21 @@ export function OrbitY({ sensitivity = 0.005 }: OrbitYProps) {
   const gl = useThree((state) => state.gl)
   const moveEdit = useAppSelector((state) => state.objects.moveEdit)
   const rotateEdit = useAppSelector((state) => state.objects.rotateEdit)
-  const selectedKey = useAppSelector((state) =>
-    state.objects.selectedIds.join(','),
-  )
-  const pivot = useAppSelector(selectOrbitPivot)
+  const items = useAppSelector((state) => state.objects.items)
+  const selectedIds = useAppSelector((state) => state.objects.selectedIds)
+  const selectedKey = selectedIds.join(',')
 
   const moveEditRef = useRef(moveEdit)
   const rotateEditRef = useRef(rotateEdit)
-  const pivotRef = useRef(pivot)
   moveEditRef.current = moveEdit
   rotateEditRef.current = rotateEdit
-  pivotRef.current = pivot
 
-  // When selection changes, re-aim at 20° toward the new pivot.
+  // New selection → orbit center jumps to selection centroid (or origin).
   useEffect(() => {
-    aimCameraAtPivot(camera, pivotRef.current)
+    setOrbitPivot(selectionCentroid(items, selectedIds))
+    aimCameraAtPivot(camera, getOrbitPivot())
+    // Only when the selection set changes — not when objects move.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- selectedKey gates the sync
   }, [camera, selectedKey])
 
   useEffect(() => {
@@ -61,7 +66,7 @@ export function OrbitY({ sensitivity = 0.005 }: OrbitYProps) {
       const angle = -dx * sensitivity
       const cos = Math.cos(angle)
       const sin = Math.sin(angle)
-      const pivotNow = pivotRef.current
+      const pivotNow = getOrbitPivot()
       const rx = camera.position.x - pivotNow.x
       const rz = camera.position.z - pivotNow.z
 

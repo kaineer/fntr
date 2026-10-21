@@ -1,4 +1,4 @@
-import type { Ref } from 'react'
+import { useEffect, useRef, type Ref } from 'react'
 import { rotateObjectAroundEdge } from '../store/objectsSlice.ts'
 import { sizeEdgeLabel } from '../store/sizeEdge.ts'
 import { useAppDispatch, useAppSelector } from '../store/hooks.ts'
@@ -20,6 +20,21 @@ export function RotateForm({ formRef }: RotateFormProps) {
     const id = state.objects.rotateEdit?.edgeObjectId
     return state.objects.items.find((item) => item.id === id)
   })
+  const firstButtonRef = useRef<HTMLButtonElement>(null)
+  const open = Boolean(rotateEdit?.formOpen && edgeOwner)
+
+  // Defer until after the Space keyup that opened the form, otherwise
+  // Space would activate the focused button.
+  useEffect(() => {
+    if (!open) return
+    const focusButton = () => firstButtonRef.current?.focus()
+    window.addEventListener('keyup', focusButton, { once: true })
+    const fallback = window.setTimeout(focusButton, 50)
+    return () => {
+      window.removeEventListener('keyup', focusButton)
+      window.clearTimeout(fallback)
+    }
+  }, [open])
 
   if (!rotateEdit?.formOpen || !edgeOwner) return null
 
@@ -34,9 +49,10 @@ export function RotateForm({ formRef }: RotateFormProps) {
         {sizeEdgeLabel(rotateEdit.edge)} · Esc — выход
       </p>
       <div className="rotate-actions">
-        {ACTIONS.map((action) => (
+        {ACTIONS.map((action, index) => (
           <button
             key={action.id}
+            ref={index === 0 ? firstButtonRef : undefined}
             type="button"
             onClick={() =>
               dispatch(

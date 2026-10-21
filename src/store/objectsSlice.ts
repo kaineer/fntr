@@ -41,17 +41,15 @@ export type ClipboardState = {
 
 export const DEFAULT_OBJECT_COLOR = '#f5f5f2'
 
-function cloneClipboardObject(
-  item: SceneObject | ClipboardObject,
-): ClipboardObject {
-  return {
-    type: item.type,
-    size: { ...item.size },
-    rotation: { ...item.rotation },
-    position: { ...item.position },
-    color: item.color,
-  }
-}
+const cloneClipboardObject = (
+  { type, size, rotation, position, color }: SceneObject | ClipboardObject,
+): ClipboardObject => ({
+  type,
+  color,
+  size: { ...size },
+  rotation: { ...rotation },
+  position: { ...position },
+});
 
 function clearSelectionModes(state: ObjectsState) {
   state.sizeEdit = null
@@ -79,10 +77,10 @@ export type AlignState =
   | { phase: 'pickSourceCorner' }
   | { phase: 'pickTarget'; sourceCorner: CornerId }
   | {
-      phase: 'pickTargetCorner'
-      sourceCorner: CornerId
-      targetId: string
-    }
+    phase: 'pickTargetCorner'
+    sourceCorner: CornerId
+    targetId: string
+  }
 
 export type MenuLevel = 'root' | 'insert' | 'file' | 'color'
 
@@ -120,16 +118,16 @@ export type ObjectsState = {
 }
 
 const defaultsByType: Record<ObjectType, Pick<SceneObject, 'size' | 'rotation'>> =
-  {
-    cube: {
-      size: { x: 1, y: 1, z: 1 },
-      rotation: { x: 0, y: 0, z: 0 },
-    },
-    sphere: {
-      size: { x: 1, y: 1, z: 1 },
-      rotation: { x: 0, y: 0, z: 0 },
-    },
-  }
+{
+  cube: {
+    size: { x: 1, y: 1, z: 1 },
+    rotation: { x: 0, y: 0, z: 0 },
+  },
+  sphere: {
+    size: { x: 1, y: 1, z: 1 },
+    rotation: { x: 0, y: 0, z: 0 },
+  },
+}
 
 const closedMenu = {
   open: false,
@@ -158,12 +156,13 @@ const objectsSlice = createSlice({
       },
       prepare(type: ObjectType) {
         const defaults = defaultsByType[type]
+        const { size, rotation } = defaults;
         return {
           payload: {
             id: nanoid(),
             type,
-            size: { ...defaults.size },
-            rotation: { ...defaults.rotation },
+            size: { ...size },
+            rotation: { ...rotation },
             position: { x: 0, y: 0, z: 0 },
             color: DEFAULT_OBJECT_COLOR,
             groupId: null,
@@ -247,6 +246,17 @@ const objectsSlice = createSlice({
         open: true,
         mode: 'space',
         level: 'root',
+      }
+    },
+    /** Open Insert submenu (hotkey I) without going through Space root. */
+    openInsertMenu(state) {
+      if (state.moveEdit || state.align || state.sizeEdit || state.rotateEdit) {
+        return
+      }
+      state.commandMenu = {
+        open: true,
+        mode: 'space',
+        level: 'insert',
       }
     },
     setMenuLevel(state, action: PayloadAction<MenuLevel>) {
@@ -626,6 +636,7 @@ export const {
   addToSelection,
   openObjectMenu,
   toggleSpaceMenu,
+  openInsertMenu,
   setMenuLevel,
   closeCommandMenu,
   startSizeEdit,

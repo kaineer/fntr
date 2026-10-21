@@ -33,11 +33,29 @@ function menuPosition(clientX: number, clientY: number) {
 export function SizeField({ label, value, onChange }: SizeFieldProps) {
   const inputId = useId()
   const fieldRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
   const [focused, setFocused] = useState(false)
   const [draft, setDraft] = useState(formatSize(value))
   const [step, setStep] = useState(1)
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null)
+
+  // Defer until after the Space keyup that opened the form, so the key
+  // does not insert a character or activate a control.
+  useEffect(() => {
+    const focusInput = () => {
+      const input = inputRef.current
+      if (!input) return
+      input.focus()
+      input.select()
+    }
+    window.addEventListener('keyup', focusInput, { once: true })
+    const fallback = window.setTimeout(focusInput, 50)
+    return () => {
+      window.removeEventListener('keyup', focusInput)
+      window.clearTimeout(fallback)
+    }
+  }, [])
 
   useEffect(() => {
     if (!menu) return
@@ -78,6 +96,7 @@ export function SizeField({ label, value, onChange }: SizeFieldProps) {
     <div className="size-field" ref={fieldRef}>
       <label htmlFor={inputId}>{label}</label>
       <input
+        ref={inputRef}
         id={inputId}
         type="text"
         inputMode="decimal"

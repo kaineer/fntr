@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import type { MenuLevel, ObjectType } from '../store/objectsSlice.ts'
 import {
   addObject,
@@ -7,6 +7,7 @@ import {
   groupSelected,
   importScene,
   loadScene,
+  openInsertMenu,
   openRotateForm,
   openSizeForm,
   pasteClipboard,
@@ -33,6 +34,8 @@ type MenuItem = {
   id: string
   label: string
   color?: string
+  /** Explicit hotkey; skips first-letter assignment when set. */
+  hotkey?: string
   onSelect: () => void
 }
 
@@ -49,6 +52,36 @@ const MENU_LEVEL_LABELS: Partial<Record<MenuLevel, string>> = {
   insert: 'Insert',
   file: 'File',
   color: 'Color',
+}
+
+/**
+ * Assign first-letter hotkeys while letters stay unique.
+ * Items with an explicit `hotkey` keep it; that letter is reserved.
+ */
+function withFirstLetterHotkeys(items: MenuItem[]): MenuItem[] {
+  const reserved = new Set(
+    items
+      .map((item) => item.hotkey?.toLowerCase())
+      .filter((letter): letter is string => Boolean(letter)),
+  )
+  const letters = items.map((item) => {
+    if (item.hotkey) return ''
+    const ch = item.label[0]
+    return ch ? ch.toLowerCase() : ''
+  })
+  const counts = new Map<string, number>()
+  for (const letter of letters) {
+    if (!letter) continue
+    counts.set(letter, (counts.get(letter) ?? 0) + 1)
+  }
+  return items.map((item, index) => {
+    if (item.hotkey) return { ...item, hotkey: item.hotkey.toLowerCase() }
+    const letter = letters[index]
+    if (!letter || reserved.has(letter) || counts.get(letter) !== 1) {
+      return item
+    }
+    return { ...item, hotkey: letter }
+  })
 }
 
 export function CommandMenu() {
@@ -74,98 +107,6 @@ export function CommandMenu() {
 
   const moveEdit = useAppSelector((state) => state.objects.moveEdit)
   const clipboard = useAppSelector((state) => state.objects.clipboard)
-
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      const target = event.target as HTMLElement | null
-      if (
-        target &&
-        (target.tagName === 'INPUT' ||
-          target.tagName === 'TEXTAREA' ||
-          target.isContentEditable)
-      ) {
-        return
-      }
-
-      if (event.code === 'Space') {
-        event.preventDefault()
-        if (sizeEdit) {
-          if (!sizeEdit.formOpen) {
-            dispatch(openSizeForm())
-          }
-          return
-        }
-        if (rotateEdit) {
-          if (!rotateEdit.formOpen) {
-            dispatch(openRotateForm())
-          }
-          return
-        }
-        dispatch(toggleSpaceMenu())
-        return
-      }
-
-      if (event.code === 'Escape' && open) {
-        event.preventDefault()
-        event.stopImmediatePropagation()
-        dispatch(closeCommandMenu())
-        return
-      }
-
-      const busy =
-        Boolean(sizeEdit) ||
-        Boolean(rotateEdit) ||
-        Boolean(moveEdit) ||
-        Boolean(align)
-      if (busy || event.metaKey || event.ctrlKey || event.altKey) return
-
-      if (event.code === 'KeyG') {
-        if (event.shiftKey) {
-          if (!groupSelectedActive) return
-          event.preventDefault()
-          dispatch(ungroupSelected())
-          return
-        }
-        if (selectedIds.length < 2) return
-        event.preventDefault()
-        dispatch(groupSelected())
-        return
-      }
-
-      if (event.code === 'KeyX') {
-        if (selectedIds.length === 0) return
-        event.preventDefault()
-        dispatch(cutSelected())
-        return
-      }
-
-      if (event.code === 'KeyY') {
-        if (selectedIds.length === 0) return
-        event.preventDefault()
-        dispatch(yankSelected())
-        return
-      }
-
-      if (event.code === 'KeyP') {
-        if (!clipboard) return
-        event.preventDefault()
-        dispatch(pasteClipboard())
-      }
-    }
-
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [
-    dispatch,
-    open,
-    align,
-    sizeEdit,
-    rotateEdit,
-    moveEdit,
-    selectedIds,
-    clipboard,
-    groupSelectedActive,
-  ])
 
   const insertObject = (type: ObjectType) => {
     dispatch(addObject(type))
@@ -261,6 +202,7 @@ export function CommandMenu() {
     {
       id: 'delete',
       label: 'Delete',
+      hotkey: 'x',
       onSelect: () => {
         dispatch(cutSelected())
         closeMenu()
@@ -318,6 +260,123 @@ export function CommandMenu() {
     }))
   }
 
+  menuItems = withFirstLetterHotkeys(menuItems)
+  const menuItemsRef = useRef(menuItems)
+  menuItemsRef.current = menuItems
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null
+      if (
+        target &&
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.isContentEditable)
+      ) {
+        return
+      }
+
+      if (event.code === 'Space') {
+        event.preventDefault()
+        if (sizeEdit) {
+          if (!sizeEdit.formOpen) {
+            dispatch(openSizeForm())
+          }
+          return
+        }
+        if (rotateEdit) {
+          if (!rotateEdit.formOpen) {
+            dispatch(openRotateForm())
+          }
+          return
+        }
+        dispatch(toggleSpaceMenu())
+        return
+      }
+
+      if (event.code === 'Escape' && open) {
+        event.preventDefault()
+        event.stopImmediatePropagation()
+        dispatch(closeCommandMenu())
+        return
+      }
+
+      const busy =
+        Boolean(sizeEdit) ||
+        Boolean(rotateEdit) ||
+        Boolean(moveEdit) ||
+        Boolean(align)
+      if (busy || event.metaKey || event.ctrlKey || event.altKey) return
+
+      if (open) {
+        const letter = event.key.length === 1 ? event.key.toLowerCase() : ''
+        if (letter) {
+          const match = menuItemsRef.current.find(
+            (item) => item.hotkey === letter,
+          )
+          if (match) {
+            event.preventDefault()
+            event.stopImmediatePropagation()
+            match.onSelect()
+          }
+        }
+        return
+      }
+
+      if (event.code === 'KeyI') {
+        event.preventDefault()
+        dispatch(openInsertMenu())
+        return
+      }
+
+      if (event.code === 'KeyG') {
+        if (event.shiftKey) {
+          if (!groupSelectedActive) return
+          event.preventDefault()
+          dispatch(ungroupSelected())
+          return
+        }
+        if (selectedIds.length < 2) return
+        event.preventDefault()
+        dispatch(groupSelected())
+        return
+      }
+
+      if (event.code === 'KeyX') {
+        if (selectedIds.length === 0) return
+        event.preventDefault()
+        dispatch(cutSelected())
+        return
+      }
+
+      if (event.code === 'KeyY') {
+        if (selectedIds.length === 0) return
+        event.preventDefault()
+        dispatch(yankSelected())
+        return
+      }
+
+      if (event.code === 'KeyP') {
+        if (!clipboard) return
+        event.preventDefault()
+        dispatch(pasteClipboard())
+      }
+    }
+
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [
+    dispatch,
+    open,
+    align,
+    sizeEdit,
+    rotateEdit,
+    moveEdit,
+    selectedIds,
+    clipboard,
+    groupSelectedActive,
+  ])
+
   if (!open) return null
 
   return (
@@ -370,7 +429,11 @@ export function CommandMenu() {
                   />
                 ) : null}
                 {item.label}
-                {level === 'root' ? <span className="hint">›</span> : null}
+                {item.hotkey ? (
+                  <span className="hint">{item.hotkey.toUpperCase()}</span>
+                ) : level === 'root' ? (
+                  <span className="hint">›</span>
+                ) : null}
               </button>
             </li>
           ))}

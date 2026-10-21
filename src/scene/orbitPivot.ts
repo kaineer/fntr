@@ -1,5 +1,5 @@
 import type { Camera } from 'three'
-import type { RootState } from '../store/store.ts'
+import type { SceneObject } from '../store/objectsSlice.ts'
 
 export const SCENE_ORIGIN = { x: 0, y: 0, z: 0 } as const
 
@@ -9,10 +9,31 @@ export const ORBIT_ELEVATION_RAD = (ORBIT_ELEVATION_DEG * Math.PI) / 180
 
 export type OrbitPivot = { x: number; y: number; z: number }
 
-/** Orbit / zoom pivot: centroid of selection, else scene origin. */
-export function selectOrbitPivot(state: RootState): OrbitPivot {
-  const { selectedIds, items } = state.objects
-  if (selectedIds.length === 0) return SCENE_ORIGIN
+/** Mutable orbit / zoom / pan pivot (WASD can offset it until selection changes). */
+let livePivot: OrbitPivot = { ...SCENE_ORIGIN }
+
+export function getOrbitPivot(): OrbitPivot {
+  return livePivot
+}
+
+export function setOrbitPivot(pivot: OrbitPivot) {
+  livePivot = { x: pivot.x, y: pivot.y, z: pivot.z }
+}
+
+export function panOrbitPivot(dx: number, dy: number, dz: number) {
+  livePivot = {
+    x: livePivot.x + dx,
+    y: livePivot.y + dy,
+    z: livePivot.z + dz,
+  }
+}
+
+/** Centroid of selection, else scene origin. */
+export function selectionCentroid(
+  items: SceneObject[],
+  selectedIds: string[],
+): OrbitPivot {
+  if (selectedIds.length === 0) return { ...SCENE_ORIGIN }
 
   let x = 0
   let y = 0
@@ -26,7 +47,7 @@ export function selectOrbitPivot(state: RootState): OrbitPivot {
     z += item.position.z
     count += 1
   }
-  if (count === 0) return SCENE_ORIGIN
+  if (count === 0) return { ...SCENE_ORIGIN }
   return { x: x / count, y: y / count, z: z / count }
 }
 
